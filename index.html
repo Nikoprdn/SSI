@@ -488,6 +488,23 @@ function startLoop(lvl){stopAll();if(lvl==='critical')startNFS();else startPre()
 function stopAll(){stopNFS();stopPre();}
 function beepAck(){if(S.muted)return;const t=ac().currentTime;tone(440,t+.01,.07,.15,'sine');tone(660,t+.09,.09,.15,'sine');}
 function beepEvac(){if(S.muted)return;const t=ac().currentTime;[0,.18,.36].forEach(d=>{tone(554,t+d,.08,.5);tone(440,t+d+.08,.1,.5);});}
+
+// Bip d'attention discret — signale l'arrivée d'une alarme dans le tableau
+// DIFFÉRENT du signal NF S 32-001 qui n'est émis que sur ordre opérateur
+function beepNotify(lvl){
+  if(S.muted)return;
+  const t=ac().currentTime;
+  if(lvl==='critical'){
+    // Trois bips courts aigus — attirent l'attention de l'opérateur
+    tone(880,t+.01,.06,.3,'sine');
+    tone(880,t+.15,.06,.28,'sine');
+    tone(880,t+.29,.06,.25,'sine');
+  } else {
+    // Deux bips doux — pré-alarme
+    tone(660,t+.01,.07,.2,'sine');
+    tone(660,t+.18,.07,.18,'sine');
+  }
+}
 function beepAlert(){if(S.muted)return;const t=ac().currentTime;tone(554,t+.01,.1,.4);tone(440,t+.11,.2,.4);tone(554,t+.35,.1,.38);tone(440,t+.45,.2,.38);tone(554,t+.69,.1,.35);tone(440,t+.79,.2,.35);}
 function toggleMute(){
   S.muted=!S.muted;const b=document.getElementById('mute-btn');
@@ -563,10 +580,10 @@ function addAlarm(zone,type,msg,lvl='critical'){
     <button class="ack-btn ${lc}" id="ab-${id}" onclick="ackAlarm(${id})">ACQUITTER</button>`;
   document.getElementById('alarm-list').insertBefore(el,document.getElementById('alarm-list').firstChild);
   updateBadge();
-  // Bip d'alerte + boucle
-  beepAlert();
-  setTimeout(()=>startLoop(lvl),700);
-  // Démarrer la temporisation opérateur (alarme restreinte — sans évacuation auto)
+  // Bip d'attention discret uniquement — PAS de signal NF S 32-001
+  // Le signal 2-tons n'est émis que sur ordre opérateur (ÉVACUATION GÉNÉRALE)
+  beepNotify(lvl);
+  // Démarrer la temporisation d'alarme restreinte (sans aucun DAS, sans signal évacuation)
   startAR(lvl);
 }
 
@@ -610,7 +627,7 @@ function startAR(lvl){
   S.arInterval=setInterval(()=>{
     if(S.arPaused)return;
     S.arSec--;updateARDisplay();
-    if(S.arSec<=10&&S.arSec>0&&S.arSec%2===0){tone(554,ac().currentTime+.01,.07,.25);}
+    if(S.arSec<=10&&S.arSec>0&&S.arSec%2===0){ beepNotify('critical'); }
     if(S.arSec<=0){clearInterval(S.arInterval);S.arInterval=null;arExpired();}
   },1000);
   log(`⏱ Alarme restreinte — ${secs}s — Acquitter ou décider`,'warning');
@@ -645,9 +662,12 @@ function updateARDisplay(){
 function arExpired(){
   document.getElementById('ar-timer').className='ar-timer expired';
   document.getElementById('ar-phase').textContent='⚠ TEMPO EXPIRÉE — CONFIRMATION REQUISE';
-  document.getElementById('ar-msg').textContent='Déclencher l\'évacuation générale ou réarmer si fausse alarme';
+  document.getElementById('ar-msg').textContent="Déclencher l'évacuation générale ou réarmer si fausse alarme";
   document.getElementById('evac-led').className='led led-r';
-  beepEvac();setTimeout(beepEvac,700);
+  // Bip d'attention répété — toujours PAS le signal NF S 32-001
+  beepNotify('critical');
+  setTimeout(()=>beepNotify('critical'),600);
+  setTimeout(()=>beepNotify('critical'),1200);
   log('⚠ Tempo expirée — Décision opérateur requise : ÉVACUATION ou RÉARMEMENT','critical');
 }
 
@@ -661,13 +681,18 @@ function triggerEvacuation(){
   document.getElementById('sys-led').className='led led-r';
   document.getElementById('sys-label').textContent='ÉVACUATION GÉNÉRALE';
   document.getElementById('alarm-led').className='led led-r';
-  log('🚨 ÉVACUATION GÉNÉRALE — Déclenchée par opérateur — Signal NF S 32-001 activé','critical');
-  log('▶ Tous DAS activés — Diffuseurs sonores en marche','critical');
-  FLOORS.forEach(f=>activateDas(f.id));
-  FLOORS.forEach(f=>{if(S.floorStates[f.id]!=='alarm')setFloor(f.id,'evacuating');});
-  S.evacCount=92;S.alarmActive=true;updateCounters();
-  startNFS();
-  isoRefresh();
+  log('🚨 ÉVACUATION GÉNÉRALE — Déclenchée par opérateur','critical');
+  log('▶ Signal NF S 32-001 activé sur tous les diffuseurs','critical');
+  log('▶ Activation DAS : trappes / portes CF / ascenseurs','critical');
+  // Signal sonore NF S 32-001 — seulement maintenant
+  beepEvac(); setTimeout(beepEvac,700); setTimeout(beepEvac,1400);
+  setTimeout(startNFS, 1800);
+  // Activation des DAS sur tous les étages en alarme ou évacuation
+  FLOORS.forEach(f=>{
+    if(S.floorStates[f.id]==='alarm'||S.floorStates[f.id]==='smoke')activateDas(f.id);
+    if(S.floorStates[f.id]!=='alarm')setFloor(f.id,'evacuating');
+  });
+  S.evacCount=92;S.alarmActive=true;updateCounters();isoRefresh();
 }
 
 function rearmSystem(){
@@ -718,7 +743,9 @@ function triggerFloorAlarm(fid,reason,src='auto'){
     document.getElementById('alarm-led').className='led led-r';
   }
   log(`🔥 ALARME — ${fname} — ${reason}`,'critical');
-  activateDas(fid);updateCounters();isoRefresh();
+  log(`▶ En attente décision opérateur — DAS et signal sonore NON activés`,'warning');
+  // NE PAS appeler activateDas() ici — uniquement sur ordre opérateur
+  updateCounters();isoRefresh();
 }
 
 function triggerFloorSmoke(fid,reason){
