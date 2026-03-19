@@ -324,7 +324,14 @@
       <div class="ec-timer" id="ec-timer">00:30</div>
       <div class="ec-msg" id="ec-msg">Acquitter l'alarme pour suspendre la temporisation</div>
       <div class="ec-bar-wrap"><div class="ec-bar" id="ec-bar" style="width:100%"></div></div>
-      <button class="force-evac-btn" onclick="forceEvacuation()">▶ DÉCLENCHER ÉVACUATION IMMÉDIATE</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+        <button class="force-evac-btn" onclick="forceEvacuation()" style="margin-top:0;">
+          🚨 ÉVACUATION GÉNÉRALE
+        </button>
+        <button class="force-evac-btn" onclick="rearmAlarm()" style="margin-top:0;background:#0a1520;border-color:var(--cyan);color:var(--cyan);">
+          ✓ RÉARMER / FAUSSE AL.
+        </button>
+      </div>
     </div>
 
     <!-- BUILDING SYNOPSIS -->
@@ -732,11 +739,11 @@ function addAlarm(zone, type, msg, level) {
   list.insertBefore(el,list.firstChild);
 
   updateBadge();
-  startLoop(level);
-  if (!state.evacuationTriggered) {
-    if (!evacPaused) startEvacCountdown(level);
-    else resumeEvac();
-  }
+  // Bip NF S 32-001 uniquement si critique, bip court si avertissement
+  if (level === 'critical') beepAlarmOnce();
+  else beepWarningOnce();
+  // Démarrer la temporisation d'alarme restreinte (sans évacuation auto)
+  startAlarmRestricted(level);
 }
 
 function ackAlarm(id) {
@@ -746,9 +753,13 @@ function ackAlarm(id) {
   const el=document.getElementById(`ar-${id}`); if(el){el.classList.remove('unack');el.classList.add('acked');}
   const btn=document.getElementById(`ab-${id}`); if(btn){btn.textContent='ACQUITTÉ';btn.classList.add('done');}
   beepAck();
-  log(`Alarme #${id} [${row.zone}] acquittée`,'ok');
+  log(`Alarme #${id} [${row.zone}] acquittée par opérateur`,'ok');
   updateBadge();
-  if(state.unackCount===0) { stopLoop(); pauseEvac(); }
+  // Arrêt du bip continu dès que tout est acquitté
+  if(state.unackCount===0) {
+    stopLoop();
+    pauseAlarmRestricted();
+  }
 }
 
 function ackAll() {
@@ -764,84 +775,188 @@ function updateBadge() {
 }
 
 // ================================================================
-// EVACUATION COUNTDOWN
+// BIPS UNITAIRES (sans boucle continue)
 // ================================================================
-function startEvacCountdown(level) {
-  if(state.evacuationTriggered) return;
-  const secs = level==='critical'?15:30;
-  state.evacSec=secs; state.evacMaxSec=secs;
-  evacPaused=false;
-  document.getElementById('evac-countdown').style.display='block';
-  document.getElementById('evac-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--yellow);box-shadow:var(--glow-yellow);animation:pulse-orange .8s infinite;';
-  document.getElementById('ec-phase-top').textContent='PHASE: TEMPORISATION';
-  document.getElementById('ec-msg').textContent="Acquitter l'alarme pour suspendre la temporisation";
+function beepAlarmOnce() {
+  // Double-bip NF S 32-001 court — signale l'arrivée d'une alarme
+  if (isMuted) return;
+  const c = getCtx(), t = c.currentTime;
+  tone(NFS_HI_FREQ, t+0.01, NFS_HI_DUR, 0.4, 'square');
+  tone(NFS_LO_FREQ, t+0.01+NFS_HI_DUR, NFS_LO_DUR*0.5, 0.4, 'square');
+  // Répéter 3 fois pour attirer l'attention
+  [0.6, 1.2].forEach(d => {
+    tone(NFS_HI_FREQ, t+d, NFS_HI_DUR, 0.35, 'square');
+    tone(NFS_LO_FREQ, t+d+NFS_HI_DUR, NFS_LO_DUR*0.5, 0.35, 'square');
+  });
+  // Puis boucle continue discrète tant que non acquitté
+  stopLoop();
+  startLoop('critical');
+}
+
+function beepWarningOnce() {
+  if (isMuted) return;
+  const c = getCtx(), t = c.currentTime;
+  tone(800, t+0.01, 0.08, 0.25, 'square');
+  setTimeout(()=>{ tone(800, getCtx().currentTime+0.01, 0.08, 0.22, 'square'); }, 200);
+  stopLoop();
+  startLoop('warning');
+}
+
+// ================================================================
+// ALARME RESTREINTE — temporisation opérateur
+// Compte à rebours visible, mais PAS d'évacuation auto à zéro.
+// L'opérateur doit décider manuellement.
+// ================================================================
+let arInterval = null, arPaused = false;
+
+function startAlarmRestricted(level) {
+  if (state.evacuationTriggered) return;
+  // Si déjà en cours, juste reprendre ou réduire la durée si criticité monte
+  const secs = level === 'critical' ? 30 : 60;
+  if (arInterval && state.evacSec > 0 && level === 'critical' && state.evacMaxSec > secs) {
+    // Réduire la tempo si une alarme plus critique arrive
+    state.evacSec = Math.min(state.evacSec, secs);
+    state.evacMaxSec = secs;
+    arPaused = false;
+    updateEvacDisplay();
+    return;
+  }
+  if (arInterval) return; // déjà en cours, ne pas relancer
+
+  state.evacSec = secs;
+  state.evacMaxSec = secs;
+  arPaused = false;
+
+  const panel = document.getElementById('evac-countdown');
+  panel.style.display = 'block';
+
+  // LED tempo (jaune)
+  document.getElementById('evac-led').style.cssText =
+    'width:10px;height:10px;border-radius:50%;background:var(--yellow);box-shadow:var(--glow-yellow);animation:pulse-orange .8s infinite;';
+  document.getElementById('ec-phase-top').textContent = 'ALARME RESTREINTE — EN ATTENTE OPÉRATEUR';
+  document.getElementById('ec-msg').textContent = 'Acquitter pour lever le doute · Évacuation sur décision opérateur uniquement';
   document.getElementById('ec-timer').classList.remove('safe');
   document.getElementById('ec-bar').classList.remove('safe');
   updateEvacDisplay();
-  if(evacInterval) clearInterval(evacInterval);
-  evacInterval=setInterval(()=>{
-    if(evacPaused) return;
+
+  arInterval = setInterval(() => {
+    if (arPaused) return;
     state.evacSec--;
     updateEvacDisplay();
-    if(state.evacSec<=5 && state.evacSec>0) { tone(NFS_HI_FREQ, getCtx().currentTime+0.01, 0.08, 0.35, 'square'); }
-    if(state.evacSec<=0) { clearInterval(evacInterval); triggerGeneralEvac(); }
-  },1000);
-  log(`⏱ Temporisation démarrée — ${secs}s avant évacuation générale`,'warning');
+
+    // Bips d'urgence dans les 10 dernières secondes
+    if (state.evacSec <= 10 && state.evacSec > 0 && state.evacSec % 2 === 0) {
+      tone(NFS_HI_FREQ, getCtx().currentTime + 0.01, 0.07, 0.3, 'square');
+    }
+
+    if (state.evacSec <= 0) {
+      clearInterval(arInterval);
+      arInterval = null;
+      // PAS d'évacuation automatique — on passe en état "confirmation requise"
+      onAlarmRestrictedExpired();
+    }
+  }, 1000);
+
+  log(`⏱ Alarme restreinte — Tempo ${secs}s — Acquitter ou déclencher manuellement`, 'warning');
 }
 
-function pauseEvac() {
-  if(state.evacuationTriggered) return;
-  evacPaused=true;
-  document.getElementById('ec-phase-top').textContent='PHASE: LEVÉE DE DOUTE';
-  document.getElementById('ec-msg').textContent='⏸ Suspendue — En attente de confirmation terrain';
+function pauseAlarmRestricted() {
+  if (state.evacuationTriggered) return;
+  arPaused = true;
+  document.getElementById('ec-phase-top').textContent = 'LEVÉE DE DOUTE — ALARMES ACQUITTÉES';
+  document.getElementById('ec-msg').textContent = '⏸ Toutes alarmes acquittées · Évacuation sur décision opérateur';
   document.getElementById('ec-timer').classList.add('safe');
   document.getElementById('ec-bar').classList.add('safe');
-  log('⏸ Temporisation suspendue — Alarmes toutes acquittées','info');
+  log('⏸ Alarme restreinte suspendue — Opérateur a acquitté','info');
 }
 
-function resumeEvac() {
-  if(state.evacuationTriggered) return;
-  evacPaused=false;
-  document.getElementById('ec-phase-top').textContent='PHASE: TEMPORISATION';
-  document.getElementById('ec-msg').textContent="Acquitter l'alarme pour suspendre la temporisation";
+function resumeAlarmRestricted() {
+  if (state.evacuationTriggered) return;
+  arPaused = false;
+  document.getElementById('ec-phase-top').textContent = 'ALARME RESTREINTE — EN ATTENTE OPÉRATEUR';
+  document.getElementById('ec-msg').textContent = 'Acquitter pour lever le doute · Évacuation sur décision opérateur uniquement';
   document.getElementById('ec-timer').classList.remove('safe');
   document.getElementById('ec-bar').classList.remove('safe');
-  log('▶ Temporisation reprise — Nouvelle alarme non acquittée','warning');
+  log('▶ Tempo reprise — Nouvelle alarme non acquittée', 'warning');
 }
 
+function onAlarmRestrictedExpired() {
+  // Fin de tempo : alerte forte, mais opérateur doit confirmer
+  document.getElementById('ec-phase-top').textContent = '⚠ TEMPO EXPIRÉE — CONFIRMATION REQUISE';
+  document.getElementById('ec-msg').textContent = 'Déclencher l\'évacuation ou réarmer si fausse alarme';
+  document.getElementById('ec-timer').textContent = '00:00';
+  document.getElementById('evac-led').style.cssText =
+    'width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .4s infinite;';
+  // Triple bip d'alerte
+  beepEvac();
+  setTimeout(beepEvac, 700);
+  log('⚠ Tempo expirée — Décision opérateur requise : ÉVACUATION ou RÉARMEMENT', 'critical');
+}
+
+// Garder pauseEvac/resumeEvac comme alias pour compatibilité
+function pauseEvac() { pauseAlarmRestricted(); }
+function resumeEvac() { resumeAlarmRestricted(); }
+
 function updateEvacDisplay() {
-  const s=state.evacSec, m=Math.floor(s/60), ss=s%60;
-  document.getElementById('ec-timer').textContent=`${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  document.getElementById('ec-bar').style.width=(s/state.evacMaxSec*100)+'%';
+  const s = state.evacSec, m = Math.floor(s/60), ss = s%60;
+  document.getElementById('ec-timer').textContent =
+    `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  document.getElementById('ec-bar').style.width = (s / state.evacMaxSec * 100) + '%';
 }
 
 function forceEvacuation() {
-  if(evacInterval) clearInterval(evacInterval);
-  state.evacSec=0; updateEvacDisplay();
+  if (arInterval) { clearInterval(arInterval); arInterval = null; }
   triggerGeneralEvac();
 }
 
-function triggerGeneralEvac() {
-  if(state.evacuationTriggered) return;
-  state.evacuationTriggered=true;
-  if(evacInterval) clearInterval(evacInterval);
+function rearmAlarm() {
+  // Réarmement opérateur : fausse alarme confirmée
+  if (arInterval) { clearInterval(arInterval); arInterval = null; }
+  stopLoop();
+  document.getElementById('evac-countdown').style.display = 'none';
+  document.getElementById('evac-led').style.cssText =
+    'width:10px;height:10px;border-radius:50%;background:var(--yellow-dim);box-shadow:none;animation:none;';
+  // Remettre les étages non confirmés en nominal
+  FLOORS.forEach(f => {
+    if (state.floorStates[f.id] !== 'alarm') {
+      state.floorStates[f.id] = 'normal';
+      const el = document.getElementById('floor-'+f.id);
+      if(el) el.classList.remove('smoke','evacuating');
+      const st = document.getElementById('status-'+f.id);
+      if(st) st.textContent = 'NOMINAL';
+    }
+  });
+  // Acquitter toutes les alarmes en attente
+  state.alarmRows.filter(r=>!r.acked).forEach(r=>ackAlarm(r.id));
+  beepAck();
+  log('✓ RÉARMEMENT — Fausse alarme confirmée par opérateur — Retour en veille', 'ok');
+  document.getElementById('sys-led').className = 'led';
+  document.getElementById('sys-label').textContent = 'VEILLE GÉNÉRALISÉE';
+  state.alarmActive = false;
+  _isoRefresh();
+}
+  if (state.evacuationTriggered) return;
+  state.evacuationTriggered = true;
+  if (arInterval) { clearInterval(arInterval); arInterval = null; }
 
-  beepEvac(); setTimeout(beepEvac,700); setTimeout(beepEvac,1400);
-  document.getElementById('evac-countdown').style.display='none';
-  document.getElementById('alarm-banner').style.display='block';
-  document.getElementById('evac-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .3s infinite;';
-  document.getElementById('evac-led-label').textContent='⚠ ÉVACUATION';
-  document.getElementById('sys-led').className='led red';
-  document.getElementById('sys-label').textContent='ÉVACUATION GÉNÉRALE';
-  document.getElementById('alarm-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .4s infinite;';
+  beepEvac(); setTimeout(beepEvac, 700); setTimeout(beepEvac, 1400);
+  document.getElementById('evac-countdown').style.display = 'none';
+  document.getElementById('alarm-banner').style.display = 'block';
+  document.getElementById('evac-led').style.cssText =
+    'width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .3s infinite;';
+  document.getElementById('evac-led-label').textContent = '⚠ ÉVACUATION';
+  document.getElementById('sys-led').className = 'led red';
+  document.getElementById('sys-label').textContent = 'ÉVACUATION GÉNÉRALE';
+  document.getElementById('alarm-led').style.cssText =
+    'width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .4s infinite;';
 
-  log('🚨 ÉVACUATION GÉNÉRALE DÉCLENCHÉE — Tous DAS activés','critical');
-  log('▶ Diffuseurs sonores — Signal évacuation général','critical');
-  FLOORS.forEach(f=>activateDas(f.id));
-  FLOORS.forEach(f=>{ if(state.floorStates[f.id]!=='alarm') evacuateFloor(f.id); });
-  state.evacCount=92; state.alarmActive=true;
+  log('🚨 ÉVACUATION GÉNÉRALE DÉCLENCHÉE PAR OPÉRATEUR — Tous DAS activés', 'critical');
+  log('▶ Signal NF S 32-001 — Diffuseurs sonores activés', 'critical');
+  FLOORS.forEach(f => activateDas(f.id));
+  FLOORS.forEach(f => { if (state.floorStates[f.id] !== 'alarm') evacuateFloor(f.id); });
+  state.evacCount = 92; state.alarmActive = true;
   updateCounters();
-  startLoop('critical');
+  startNFS(); // Signal NF S 32-001 continu
 }
 
 // ================================================================
@@ -1058,8 +1173,8 @@ function runScenario(id) {
 // ================================================================
 function resetAll() {
   state.scenarioTimers.forEach(t=>clearTimeout(t));
-  if(evacInterval) clearInterval(evacInterval);
-  stopLoop(); evacInterval=null; evacPaused=false;
+  if(arInterval) { clearInterval(arInterval); arInterval=null; }
+  stopLoop(); arPaused=false;
 
   state={alarmActive:false,evacuationTriggered:false,
     floorStates:{r3:'normal',r2:'normal',r1:'normal',rdc:'normal',ss1:'normal'},
