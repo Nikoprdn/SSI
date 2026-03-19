@@ -202,6 +202,29 @@
   .modal-close{padding:7px 18px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;}
   #sdi-status{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--green);}
   ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:var(--bg);} ::-webkit-scrollbar-thumb{background:var(--border2);}
+
+  /* ── TABS ── */
+  .tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border2);margin-bottom:0;flex-shrink:0;}
+  .tab-btn{padding:8px 18px;background:var(--panel2);border:1px solid var(--border2);border-bottom:none;color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .15s;margin-right:2px;position:relative;top:2px;}
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{background:var(--bg);color:var(--cyan);border-color:var(--border2);border-bottom-color:var(--bg);}
+  .tab-content{display:none;flex:1;overflow:hidden;}
+  .tab-content.active{display:flex;flex-direction:column;overflow:auto;}
+
+  /* ── ISO 3D BUILDING ── */
+  #iso-view{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:20px 10px;overflow:auto;background:var(--bg);}
+  .iso-wrap{position:relative;display:inline-block;}
+  .iso-canvas{display:block;}
+
+  /* floor selector */
+  .floor-selector{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;justify-content:center;}
+  .fs-btn{padding:5px 14px;background:var(--panel2);border:1px solid var(--border2);color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;cursor:pointer;transition:all .15s;}
+  .fs-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .fs-btn.active{border-color:var(--cyan);color:var(--cyan);background:#091518;}
+  .iso-legend{display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;justify-content:center;}
+  .iso-leg-item{display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);}
+  .iso-leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0;}
+
 </style>
 </head>
 <body>
@@ -265,6 +288,15 @@
   <!-- CENTER -->
   <div class="center-panel">
 
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('synopsis')">▶ SYNOPSIS</button>
+      <button class="tab-btn" onclick="switchTab('iso3d')">◈ VUE 3D BÂTIMENT</button>
+    </div>
+
+    <!-- TAB: SYNOPSIS -->
+    <div class="tab-content active" id="tab-synopsis">
+
     <!-- ALARM PANEL -->
     <div id="alarm-panel">
       <div class="ap-header">
@@ -295,12 +327,41 @@
       <button class="force-evac-btn" onclick="forceEvacuation()">▶ DÉCLENCHER ÉVACUATION IMMÉDIATE</button>
     </div>
 
-    <!-- BUILDING -->
-    <div>
+    <!-- BUILDING SYNOPSIS -->
+    <div style="padding:12px 12px 0;">
       <div class="section-title">▶ Synopsis Bâtiment — Vue Schématique</div>
       <div class="building" id="building"></div>
     </div>
-  </div>
+
+    </div><!-- /tab-synopsis -->
+
+    <!-- TAB: ISO 3D -->
+    <div class="tab-content" id="tab-iso3d">
+      <div id="iso-view">
+        <div class="floor-selector" id="floor-selector">
+          <button class="fs-btn active" onclick="setIsoFloor('all')">TOUS</button>
+          <button class="fs-btn" onclick="setIsoFloor('r3')">R+3</button>
+          <button class="fs-btn" onclick="setIsoFloor('r2')">R+2</button>
+          <button class="fs-btn" onclick="setIsoFloor('r1')">R+1</button>
+          <button class="fs-btn" onclick="setIsoFloor('rdc')">RDC</button>
+          <button class="fs-btn" onclick="setIsoFloor('ss1')">SS-1</button>
+        </div>
+        <div class="iso-wrap">
+          <canvas id="iso-canvas" class="iso-canvas"></canvas>
+        </div>
+        <div class="iso-legend">
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#1a3a2a;border:1px solid #00ff88"></div>NOMINAL</div>
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#2a1500;border:1px solid #ff8800"></div>FUMÉE</div>
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#3a0010;border:1px solid #ff2244"></div>ALARME</div>
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#2a2000;border:1px solid #ffdd00"></div>ÉVACUATION</div>
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#c00;border-radius:50%;width:10px;height:10px"></div>DM activé</div>
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#fa0;border-radius:50%;width:10px;height:10px"></div>Détecteur</div>
+          <div class="iso-leg-item"><div class="iso-leg-dot" style="background:#06f;border-radius:50%;width:10px;height:10px"></div>PCF / Trappe</div>
+        </div>
+      </div>
+    </div><!-- /tab-iso3d -->
+
+  </div><!-- /center-panel -->
 
   <!-- RIGHT -->
   <div class="right-panel">
@@ -1029,8 +1090,314 @@ function showModal(t,b){document.getElementById('modal-title').textContent=t;doc
 function closeModal(){document.getElementById('modal').classList.remove('show');}
 
 // ================================================================
-// LEGEND
+// TABS
 // ================================================================
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active', ['synopsis','iso3d'][i]===id));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active', c.id==='tab-'+id));
+  if(id==='iso3d') { setTimeout(renderIso, 60); }
+}
+
+// ================================================================
+// ISOMETRIC 3D BUILDING RENDERER
+// ================================================================
+let isoFloor = 'all';
+
+function setIsoFloor(f) {
+  isoFloor = f;
+  document.querySelectorAll('.fs-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim() === (f==='all'?'TOUS':f.toUpperCase()));
+  });
+  renderIso();
+}
+
+// Isometric projection helpers
+function isoProject(x, y, z) {
+  // Classic 2:1 isometric
+  const ix = (x - y) * Math.cos(Math.PI/6);
+  const iy = (x + y) * Math.sin(Math.PI/6) - z;
+  return { x: ix, y: iy };
+}
+
+function renderIso() {
+  const canvas = document.getElementById('iso-canvas');
+  if (!canvas) return;
+
+  // ── Building layout definition ────────────────────────────────
+  // Each floor has rooms. Each room: {id, label, x, y, w, h} in floor-grid units
+  const FLOOR_LAYOUTS = {
+    r3:  {
+      rooms:[
+        {id:'combles',  label:'Combles',     x:0, y:0, w:4, h:3},
+        {id:'local_r3', label:'Local Tech.', x:4, y:0, w:2, h:3},
+      ]
+    },
+    r2:  {
+      rooms:[
+        {id:'bureau_a', label:'Bureau A',    x:0, y:0, w:3, h:2},
+        {id:'bureau_b', label:'Bureau B',    x:3, y:0, w:3, h:2},
+        {id:'local_r2', label:'Local Élec.', x:0, y:2, w:2, h:1.5},
+        {id:'couloir_r2',label:'Couloir',    x:2, y:2, w:4, h:1.5},
+      ]
+    },
+    r1:  {
+      rooms:[
+        {id:'open_r1',  label:'Open Space',  x:0, y:0, w:4, h:2.5},
+        {id:'salle_r1', label:'Salle Réun.', x:4, y:0, w:2, h:2.5},
+        {id:'couloir_r1',label:'Couloir',    x:0, y:2.5, w:6, h:1},
+      ]
+    },
+    rdc:  {
+      rooms:[
+        {id:'accueil',  label:'Accueil',     x:0, y:0, w:2, h:2},
+        {id:'cuisine',  label:'Cuisine',     x:2, y:0, w:2, h:2},
+        {id:'couloir',  label:'Couloir',     x:4, y:0, w:2, h:2},
+        {id:'hall',     label:'Hall',        x:0, y:2, w:6, h:1.5},
+      ]
+    },
+    ss1:  {
+      rooms:[
+        {id:'parking',  label:'Parking',     x:0, y:0, w:4, h:3},
+        {id:'chauff',   label:'Chaufferie',  x:4, y:0, w:2, h:3},
+      ]
+    },
+  };
+
+  // Devices placed on floor-grid (relative positions)
+  const FLOOR_DEVICES = {
+    r3:  [{t:'det',x:1.5,y:1},{t:'det',x:4.5,y:1},{t:'trappe',x:5,y:0.5},{t:'pcf',x:4,y:1.5}],
+    r2:  [{t:'det',x:1,y:0.8},{t:'det',x:4,y:0.8},{t:'det',x:1,y:2.5},{t:'dcm',x:3,y:3.2},{t:'trappe',x:5,y:0.8},{t:'pcf',x:3,y:0.5},{t:'pcf',x:3,y:2}],
+    r1:  [{t:'det',x:1,y:1},{t:'det',x:3,y:1},{t:'det',x:5,y:1},{t:'dcm',x:0.5,y:3},{t:'dcm',x:5.5,y:3},{t:'trappe',x:3,y:3},{t:'pcf',x:4,y:0.2},{t:'pcf',x:0.2,y:2.5}],
+    rdc: [{t:'det',x:1,y:0.8},{t:'det',x:3,y:0.8},{t:'det',x:5,y:0.8},{t:'dcm',x:2,y:3.2},{t:'trappe',x:1,y:3},{t:'trappe',x:4,y:3},{t:'pcf',x:2,y:0.5},{t:'pcf',x:4,y:0.5}],
+    ss1: [{t:'det',x:1,y:1.5},{t:'det',x:4.5,y:1.5},{t:'trappe',x:2,y:0.5},{t:'trappe',x:3.5,y:2.5},{t:'pcf',x:0.5,y:1.5},{t:'pcf',x:4,y:0}],
+  };
+
+  // ── Canvas sizing ─────────────────────────────────────────────
+  const UNIT = 52;          // grid unit in px
+  const FLOOR_H = 44;       // visual height per storey (px, z-axis)
+  const COLS = 6, ROWS = 4; // grid dimensions
+  const PAD = 40;
+
+  const floors = isoFloor === 'all'
+    ? ['ss1','rdc','r1','r2','r3']
+    : [isoFloor];
+  const numFloors = floors.length;
+
+  // Compute iso extents
+  const corners = [
+    isoProject(0,0,0), isoProject(COLS*UNIT,0,0),
+    isoProject(0,ROWS*UNIT,0), isoProject(COLS*UNIT,ROWS*UNIT,0),
+    isoProject(0,0,numFloors*FLOOR_H), isoProject(COLS*UNIT,ROWS*UNIT,numFloors*FLOOR_H),
+  ];
+  const minX = Math.min(...corners.map(c=>c.x));
+  const maxX = Math.max(...corners.map(c=>c.x));
+  const minY = Math.min(...corners.map(c=>c.y));
+  const maxY = Math.max(...corners.map(c=>c.y));
+
+  const W = maxX - minX + PAD * 2;
+  const H = maxY - minY + PAD * 2 + numFloors * FLOOR_H;
+
+  canvas.width  = Math.round(W);
+  canvas.height = Math.round(H);
+
+  const ctx2 = canvas.getContext('2d');
+  ctx2.clearRect(0, 0, W, H);
+
+  // Offset so (0,0,0) maps to a comfortable origin
+  const OX = -minX + PAD;
+  const OY = -minY + PAD + numFloors * FLOOR_H;
+
+  function proj(x, y, z) {
+    const p = isoProject(x, y, z);
+    return { x: p.x + OX, y: p.y + OY };
+  }
+
+  // ── Color helpers ─────────────────────────────────────────────
+  function floorColor(fid) {
+    const s = state.floorStates[fid];
+    if (s === 'alarm')      return { top:'#3a0812', wall:'#250508', side:'#1a0305', glow:'#ff2244' };
+    if (s === 'smoke')      return { top:'#2a1800', wall:'#1a1000', side:'#100a00', glow:'#ff8800' };
+    if (s === 'evacuating') return { top:'#252000', wall:'#181500', side:'#100e00', glow:'#ffdd00' };
+    return { top:'#0f1e14', wall:'#0a1410', side:'#080e0c', glow:null };
+  }
+
+  function roomColor(fid, roomId) {
+    const s = state.floorStates[fid];
+    if (s === 'alarm')      return 'rgba(255,34,68,0.18)';
+    if (s === 'smoke')      return 'rgba(255,136,0,0.14)';
+    if (s === 'evacuating') return 'rgba(255,221,0,0.10)';
+    return 'rgba(0,229,255,0.03)';
+  }
+
+  const DEV_COLORS = {
+    det:    { normal:'#00aaff', active:'#ff8800', triggered:'#ff2244' },
+    dcm:    { normal:'#ff2244', active:'#ff2244', triggered:'#ff0000' },
+    trappe: { normal:'#00aaff', active:'#ff8800', open:'#ff8800' },
+    pcf:    { normal:'#00aaff', active:'#00ff88', closed:'#00ff88' },
+  };
+
+  // ── Draw functions ────────────────────────────────────────────
+  function drawFace(pts, fillColor, strokeColor, alpha) {
+    ctx2.save();
+    ctx2.globalAlpha = alpha !== undefined ? alpha : 1;
+    ctx2.beginPath();
+    ctx2.moveTo(pts[0].x, pts[0].y);
+    for (let i=1;i<pts.length;i++) ctx2.lineTo(pts[i].x, pts[i].y);
+    ctx2.closePath();
+    ctx2.fillStyle = fillColor;
+    ctx2.fill();
+    if (strokeColor) {
+      ctx2.strokeStyle = strokeColor;
+      ctx2.lineWidth = 0.8;
+      ctx2.stroke();
+    }
+    ctx2.restore();
+  }
+
+  function drawText(x, y, text, color, size) {
+    ctx2.save();
+    ctx2.font = `${size||9}px 'Share Tech Mono', monospace`;
+    ctx2.fillStyle = color || '#506070';
+    ctx2.textAlign = 'center';
+    ctx2.fillText(text, x, y);
+    ctx2.restore();
+  }
+
+  function drawDeviceDot(wx, wy, wz, type, fid) {
+    const p = proj(wx, wy, wz);
+    // Get state-aware color
+    const s = state.floorStates[fid];
+    let col = DEV_COLORS[type]?.normal || '#888';
+    if (type === 'det' && s === 'alarm') col = '#ff2244';
+    else if (type === 'det' && s === 'smoke') col = '#ff8800';
+    else if (type === 'dcm' && s === 'alarm') col = '#ff0000';
+    else if ((type === 'trappe') && (s === 'alarm' || s === 'smoke')) col = '#ff8800';
+    else if (type === 'pcf' && s === 'alarm') col = '#00ff88';
+
+    const r = type === 'dcm' ? 5 : 4;
+    ctx2.save();
+    ctx2.beginPath();
+    ctx2.arc(p.x, p.y, r, 0, Math.PI*2);
+    ctx2.fillStyle = col;
+    ctx2.shadowColor = col;
+    ctx2.shadowBlur = (s==='alarm'||s==='smoke') ? 8 : 3;
+    ctx2.fill();
+    ctx2.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx2.lineWidth = 0.6;
+    ctx2.stroke();
+    ctx2.restore();
+  }
+
+  // ── Render each floor (bottom to top) ─────────────────────────
+  floors.forEach((fid, fi) => {
+    const baseZ = fi * FLOOR_H;
+    const topZ  = baseZ + FLOOR_H;
+    const col   = floorColor(fid);
+    const floorName = FLOORS.find(f=>f.id===fid)?.name || fid;
+    const layout = FLOOR_LAYOUTS[fid];
+    const devices = FLOOR_DEVICES[fid] || [];
+
+    // ─ Draw building walls (left + right faces) ─
+    // Right face (y = ROWS*UNIT)
+    const rf = [
+      proj(0, ROWS*UNIT, baseZ),
+      proj(COLS*UNIT, ROWS*UNIT, baseZ),
+      proj(COLS*UNIT, ROWS*UNIT, topZ),
+      proj(0, ROWS*UNIT, topZ),
+    ];
+    drawFace(rf, col.wall, col.glow ? col.glow+'44' : '#1a2820');
+
+    // Left face (x = 0)
+    const lf = [
+      proj(0, 0, baseZ),
+      proj(0, ROWS*UNIT, baseZ),
+      proj(0, ROWS*UNIT, topZ),
+      proj(0, 0, topZ),
+    ];
+    drawFace(lf, col.side, col.glow ? col.glow+'44' : '#121e18');
+
+    // ─ Draw rooms on the floor top ─
+    if (layout) {
+      layout.rooms.forEach(room => {
+        const rx = room.x * UNIT, ry = room.y * UNIT;
+        const rw = room.w * UNIT, rh = room.h * UNIT;
+        // Top face of this room
+        const tp = [
+          proj(rx,    ry,    topZ),
+          proj(rx+rw, ry,    topZ),
+          proj(rx+rw, ry+rh, topZ),
+          proj(rx,    ry+rh, topZ),
+        ];
+        drawFace(tp, roomColor(fid, room.id), col.glow ? col.glow+'66' : '#1a3a28', 0.95);
+
+        // Room label on top face
+        const cx = proj(rx + rw/2, ry + rh/2, topZ);
+        drawText(cx.x, cx.y + 3, room.label, col.glow || '#304840', 8);
+      });
+    }
+
+    // Floor grid outline (top face)
+    const topFace = [
+      proj(0, 0, topZ),
+      proj(COLS*UNIT, 0, topZ),
+      proj(COLS*UNIT, ROWS*UNIT, topZ),
+      proj(0, ROWS*UNIT, topZ),
+    ];
+    drawFace(topFace, 'transparent', col.glow ? col.glow+'88' : '#1e3830');
+
+    // Floor name label on left face
+    const lbl = proj(0, ROWS*UNIT/2, baseZ + FLOOR_H*0.5);
+    drawText(lbl.x - 22, lbl.y, floorName, col.glow || '#506070', 9);
+
+    // ─ Devices ─
+    devices.forEach(dev => {
+      const wx = dev.x * UNIT;
+      const wy = dev.y * UNIT;
+      drawDeviceDot(wx, wy, topZ + 4, dev.t, fid);
+    });
+
+    // ─ Cage d'escalier (vertical shaft) ─
+    if (fi < floors.length - 1) {
+      const sx = 5.5 * UNIT, sy = 0;
+      const sw = 0.5 * UNIT, sdh = FLOOR_H;
+      const shaft = [
+        proj(sx, sy, topZ),
+        proj(sx+sw, sy, topZ),
+        proj(sx+sw, sy, topZ + sdh),
+        proj(sx, sy, topZ + sdh),
+      ];
+      drawFace(shaft, '#0a1810', '#1a3028', 0.7);
+    }
+
+    // ─ Glow overlay for alarmed floors ─
+    if (col.glow) {
+      ctx2.save();
+      const gp = proj(COLS*UNIT/2, ROWS*UNIT/2, topZ);
+      const grad = ctx2.createRadialGradient(gp.x, gp.y, 0, gp.x, gp.y, COLS*UNIT*0.6);
+      grad.addColorStop(0, col.glow + '22');
+      grad.addColorStop(1, 'transparent');
+      ctx2.fillStyle = grad;
+      ctx2.fillRect(0, 0, W, H);
+      ctx2.restore();
+    }
+  });
+
+  // ─ Building label ─
+  const labelP = proj(COLS*UNIT/2, -UNIT*0.3, floors.length * FLOOR_H + 10);
+  ctx2.save();
+  ctx2.font = "bold 11px 'Share Tech Mono', monospace";
+  ctx2.fillStyle = '#00e5ff';
+  ctx2.textAlign = 'center';
+  ctx2.letterSpacing = '2px';
+  ctx2.fillText('BÂTIMENT PRINCIPAL', labelP.x, labelP.y);
+  ctx2.restore();
+}
+
+// ── Auto-refresh ISO view when state changes ──────────────────
+const _origTriggerFloorAlarm = triggerFloorAlarm;
+// patch: re-render iso on state changes
+function _isoRefresh() { if(document.getElementById('tab-iso3d')?.classList.contains('active')) renderIso(); }
+
 function buildLegend() {
   const items = [
     {svg: SVG.dcm,        label:'DCM / DM'},
@@ -1060,6 +1427,14 @@ setInterval(()=>document.getElementById('clock').textContent=new Date().toTimeSt
 document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8);
 buildBuilding();
 buildLegend();
+renderIso();
+// Patch state-changing functions to auto-refresh 3D view
+const _origTFA = triggerFloorAlarm;
+triggerFloorAlarm = function(...args) { _origTFA(...args); _isoRefresh(); };
+const _origTFS = triggerFloorSmoke;
+triggerFloorSmoke = function(...args) { _origTFS(...args); _isoRefresh(); };
+const _origEF  = evacuateFloor;
+evacuateFloor = function(...args) { _origEF(...args); _isoRefresh(); };
 log('SSI initialisé — Catégorie A — Veille généralisée','ok');
 log('SDI: 18 détecteurs en ligne — 5 DCM opérationnels','info');
 log('DAS: 10 trappes + 14 PCF + 4 ascenseurs en veille','info');
