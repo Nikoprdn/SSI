@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSI — Système de Sécurité Incendie</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+  :root {
+    --bg:#0a0c0f; --panel:#0f1318; --panel2:#131820;
+    --border:#1e2a35; --border2:#243040;
+    --green:#00ff88; --green-dim:#004422;
+    --red:#ff2244; --red-dim:#3a0010;
+    --orange:#ff8800; --orange-dim:#2a1a00;
+    --yellow:#ffdd00; --yellow-dim:#2a2000;
+    --blue:#00aaff; --cyan:#00e5ff;
+    --text:#c8d8e8; --text-dim:#506070;
+    --glow-red:0 0 8px #ff2244,0 0 20px #ff224466;
+    --glow-green:0 0 8px #00ff88,0 0 20px #00ff8866;
+    --glow-orange:0 0 8px #ff8800,0 0 20px #ff880066;
+    --glow-yellow:0 0 8px #ffdd00,0 0 20px #ffdd0066;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:14px;min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none;z-index:9999;}
+
+  /* HEADER */
+  header{background:var(--panel);border-bottom:2px solid var(--red);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 20px rgba(255,34,68,.2);position:sticky;top:0;z-index:500;}
+  .ssi-logo{font-family:'Orbitron',monospace;font-size:20px;font-weight:900;color:var(--red);letter-spacing:4px;text-shadow:var(--glow-red);}
+  .ssi-subtitle{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);letter-spacing:2px;}
+  .status-bar{display:flex;gap:16px;align-items:center;}
+  .sys-status{display:flex;align-items:center;gap:7px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1px;}
+  .led{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:var(--glow-green);animation:pulse-green 2s infinite;}
+  .led.red{background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .5s infinite;}
+  .led.orange{background:var(--orange);box-shadow:var(--glow-orange);animation:pulse-orange 1s infinite;}
+  .led.yellow{background:var(--yellow);box-shadow:var(--glow-yellow);animation:pulse-orange .8s infinite;}
+  .led.off{background:#1a1a1a;box-shadow:none;animation:none;}
+  @keyframes pulse-green{0%,100%{opacity:1}50%{opacity:.5}}
+  @keyframes pulse-red{0%,100%{opacity:1;box-shadow:0 0 12px #ff2244,0 0 30px #ff224488}50%{opacity:.7;box-shadow:0 0 4px #ff2244}}
+  @keyframes pulse-orange{0%,100%{opacity:1}50%{opacity:.4}}
+  .clock{font-family:'Orbitron',monospace;font-size:13px;color:var(--cyan);letter-spacing:2px;}
+
+  /* MAIN */
+  .main{display:grid;grid-template-columns:230px 1fr 290px;height:calc(100vh - 54px);}
+  .left-panel{background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;}
+  .center-panel{background:var(--bg);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .right-panel{background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .section-title{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:5px;margin-bottom:8px;}
+
+  /* SCENARIOS */
+  .scenario-btn{display:block;width:100%;padding:8px 11px;background:var(--panel2);border:1px solid var(--border2);border-left:3px solid var(--text-dim);color:var(--text);font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;cursor:pointer;text-align:left;transition:all .15s;margin-bottom:4px;}
+  .scenario-btn:hover{background:#1a2030;}
+  .scenario-btn.sf{border-left-color:var(--red);} .scenario-btn.sf:hover{color:var(--red);}
+  .scenario-btn.ss{border-left-color:var(--orange);} .scenario-btn.ss:hover{color:var(--orange);}
+  .scenario-btn.sm{border-left-color:var(--yellow);} .scenario-btn.sm:hover{color:var(--yellow);}
+  .scenario-btn.se{border-left-color:var(--blue);} .scenario-btn.se:hover{color:var(--blue);}
+  .scenario-btn span{font-size:15px;margin-right:5px;}
+  .reset-btn{display:block;width:100%;padding:9px;background:#0a1520;border:1px solid #1e3040;color:var(--cyan);font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;transition:all .15s;}
+  .reset-btn:hover{background:#0f2030;box-shadow:0 0 10px rgba(0,229,255,.2);}
+
+  /* BUILDING */
+  .building{display:flex;flex-direction:column-reverse;gap:7px;}
+  .floor{background:var(--panel2);border:1px solid var(--border2);border-radius:2px;padding:9px 11px;position:relative;transition:all .3s;}
+  .floor.alarm{border-color:var(--red);box-shadow:0 0 14px rgba(255,34,68,.35),inset 0 0 20px rgba(255,34,68,.06);animation:floor-alarm .6s infinite;}
+  .floor.smoke{border-color:var(--orange);box-shadow:0 0 12px rgba(255,136,0,.3);}
+  .floor.evacuating{border-color:var(--yellow);box-shadow:0 0 8px rgba(255,221,0,.2);}
+  @keyframes floor-alarm{0%,100%{box-shadow:0 0 14px rgba(255,34,68,.35),inset 0 0 20px rgba(255,34,68,.06)}50%{box-shadow:0 0 28px rgba(255,34,68,.65),inset 0 0 40px rgba(255,34,68,.14)}}
+  .floor-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+  .floor-name{font-family:'Orbitron',monospace;font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:2px;}
+  .floor.alarm .floor-name{color:var(--red);text-shadow:var(--glow-red);}
+  .floor.smoke .floor-name{color:var(--orange);}
+  .floor.evacuating .floor-name{color:var(--yellow);}
+  .floor-status{font-family:'Share Tech Mono',monospace;font-size:9px;padding:2px 7px;border-radius:2px;background:var(--green-dim);color:var(--green);letter-spacing:1px;}
+  .floor.alarm .floor-status{background:var(--red-dim);color:var(--red);}
+  .floor.smoke .floor-status{background:var(--orange-dim);color:var(--orange);}
+  .floor.evacuating .floor-status{background:var(--yellow-dim);color:var(--yellow);}
+
+  /* DEVICES */
+  .devices{display:flex;flex-wrap:wrap;gap:5px;}
+  .device{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 7px;background:var(--bg);border:1px solid var(--border);border-radius:2px;min-width:48px;cursor:pointer;transition:all .2s;position:relative;}
+  .device:hover{border-color:var(--text-dim);}
+  .device-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;}
+  .device-icon svg{width:28px;height:28px;color:var(--text-dim);transition:color .2s;}
+  .device-label{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--text-dim);letter-spacing:.5px;text-align:center;}
+  .device-led{width:6px;height:6px;border-radius:50%;background:var(--green-dim);}
+  /* SVG icon colour states */
+  .device.active .device-icon svg{color:var(--green);}
+  .device.triggered .device-icon svg{color:var(--red);}
+  .device.smoke-det.detecting .device-icon svg{color:var(--orange);}
+  .device.open .device-icon svg{color:var(--orange);}
+  .device.closed .device-icon svg{color:var(--green);}
+  /* LED states */
+  .device.active .device-led{background:var(--green);box-shadow:var(--glow-green);animation:pulse-green 1.5s infinite;}
+  .device.triggered .device-led{background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .4s infinite;}
+  .device.triggered{border-color:var(--red);background:rgba(255,34,68,.05);}
+  .device.smoke-det.detecting .device-led{background:var(--orange);box-shadow:var(--glow-orange);animation:pulse-orange .8s infinite;}
+  .device.smoke-det.detecting{border-color:var(--orange);background:rgba(255,136,0,.05);}
+  .device.open{border-color:var(--orange);}
+  .device.open .device-led{background:var(--orange);box-shadow:var(--glow-orange);animation:pulse-orange 1s infinite;}
+  .device.closed .device-led{background:var(--green);box-shadow:var(--glow-green);}
+  .tooltip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#0a0c10;border:1px solid var(--border2);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:9px;padding:3px 7px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:200;margin-bottom:3px;}
+  .device:hover .tooltip{opacity:1;}
+
+  .legend-svg{display:inline-flex;align-items:center;color:var(--text-dim);}
+  .legend-svg svg{width:16px;height:16px;}
+
+  /* INDICATORS */
+  .indicators{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+  .indicator{padding:7px;background:var(--panel2);border:1px solid var(--border);text-align:center;}
+  .indicator-val{font-family:'Orbitron',monospace;font-size:18px;font-weight:700;color:var(--green);}
+  .indicator-val.red{color:var(--red);text-shadow:var(--glow-red);}
+  .indicator-val.orange{color:var(--orange);}
+  .indicator-val.yellow{color:var(--yellow);}
+  .indicator-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:1px;margin-top:2px;}
+
+  /* CMSI */
+  .cmsi{background:var(--panel2);border:1px solid var(--border2);padding:10px;}
+  .cmsi-title{font-family:'Orbitron',monospace;font-size:10px;color:var(--cyan);letter-spacing:3px;margin-bottom:8px;text-align:center;border-bottom:1px solid var(--border2);padding-bottom:6px;}
+  .cmsi-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+  .cmsi-btn{padding:7px 5px;background:var(--bg);border:1px solid var(--border2);color:var(--text-dim);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;cursor:pointer;text-align:center;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .cmsi-btn .ci{font-size:14px;}
+  .cmsi-btn:hover{border-color:var(--orange);color:var(--orange);}
+  .cmsi-btn.active-cmd{border-color:var(--green);color:var(--green);background:rgba(0,255,136,.05);}
+
+  /* LOG */
+  .log-list{display:flex;flex-direction:column;gap:3px;max-height:200px;overflow-y:auto;}
+  .log-entry{display:flex;gap:6px;padding:4px 7px;background:var(--panel2);border-left:2px solid var(--border2);font-family:'Share Tech Mono',monospace;font-size:9px;animation:slide-in .2s ease-out;}
+  .log-entry.critical{border-left-color:var(--red);color:var(--red);}
+  .log-entry.warning{border-left-color:var(--orange);color:var(--orange);}
+  .log-entry.info{border-left-color:var(--cyan);color:var(--cyan);}
+  .log-entry.ok{border-left-color:var(--green);color:var(--green);}
+  .log-time{color:var(--text-dim);white-space:nowrap;}
+  @keyframes slide-in{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+
+  /* ALARM BANNER */
+  #alarm-banner{display:none;position:fixed;top:0;left:0;right:0;background:var(--red);color:white;text-align:center;padding:5px;font-family:'Orbitron',monospace;font-size:12px;font-weight:700;letter-spacing:4px;z-index:10000;animation:banner-flash .5s infinite;}
+  @keyframes banner-flash{0%,100%{opacity:1}50%{opacity:.75}}
+
+  /* ═══════════════════════════════════════
+     ALARM PANEL — Tableau des alarmes
+  ═══════════════════════════════════════ */
+  #alarm-panel{background:#0d0f14;border:1px solid var(--border2);border-top:2px solid var(--red);flex-shrink:0;}
+  .ap-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(255,34,68,.05);border-bottom:1px solid var(--border2);}
+  .ap-title{font-family:'Orbitron',monospace;font-size:10px;color:var(--red);letter-spacing:2px;display:flex;align-items:center;gap:8px;}
+  .ap-badge{background:var(--red);color:white;font-family:'Orbitron',monospace;font-size:10px;font-weight:700;padding:1px 6px;border-radius:2px;min-width:20px;text-align:center;}
+  .ap-sub{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);}
+  .ap-actions{display:flex;gap:6px;}
+  .mute-btn{padding:4px 9px;background:var(--orange-dim);border:1px solid var(--orange);color:var(--orange);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .15s;}
+  .mute-btn:hover{background:#3a2800;}
+  .mute-btn.muted{background:#0d1a0d;border-color:var(--green);color:var(--green);}
+  .ack-all-btn{padding:4px 9px;background:transparent;border:1px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:1px;cursor:pointer;transition:all .15s;}
+  .ack-all-btn:hover{background:var(--red-dim);}
+
+  .alarm-list{max-height:180px;overflow-y:auto;}
+  .alarm-row{display:grid;grid-template-columns:10px 58px 68px 80px 1fr auto;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border);animation:alarm-row-in .25s ease-out;position:relative;overflow:hidden;}
+  @keyframes alarm-row-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .alarm-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+  .alarm-row.lc::before{background:var(--red);}
+  .alarm-row.lw::before{background:var(--orange);}
+  .alarm-row.li::before{background:var(--cyan);}
+  .alarm-row.unack{background:rgba(255,34,68,.04);}
+  .alarm-row.unack.lw{background:rgba(255,136,0,.04);}
+  .alarm-row.acked{background:transparent;opacity:.5;}
+  .adot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .alarm-row.unack.lc .adot{background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .5s infinite;}
+  .alarm-row.unack.lw .adot{background:var(--orange);box-shadow:var(--glow-orange);animation:pulse-orange .7s infinite;}
+  .alarm-row.acked .adot{background:var(--green-dim);animation:none;}
+  .atime{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);}
+  .azone{font-family:'Orbitron',monospace;font-size:9px;font-weight:700;}
+  .alarm-row.lc .azone{color:var(--red);}
+  .alarm-row.lw .azone{color:var(--orange);}
+  .atype{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--text-dim);}
+  .amsg{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text);}
+  .ack-btn{padding:3px 7px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:1px;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;}
+  .ack-btn:hover{background:#550018;}
+  .ack-btn.lw{background:var(--orange-dim);border-color:var(--orange);color:var(--orange);}
+  .ack-btn.lw:hover{background:#3a2000;}
+  .ack-btn.done{background:var(--green-dim);border-color:var(--green);color:var(--green);cursor:default;pointer-events:none;}
+
+  /* ═══════════════════════════════════════
+     EVACUATION COUNTDOWN
+  ═══════════════════════════════════════ */
+  #evac-countdown{display:none;background:rgba(255,34,68,.07);border:1px solid var(--red);padding:10px 14px;flex-shrink:0;}
+  .ec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .ec-title{font-family:'Orbitron',monospace;font-size:10px;color:var(--red);letter-spacing:2px;}
+  .ec-phase{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);}
+  .ec-timer{font-family:'Orbitron',monospace;font-size:36px;font-weight:900;color:var(--red);text-shadow:var(--glow-red);text-align:center;letter-spacing:4px;animation:pulse-red 1s infinite;}
+  .ec-timer.safe{color:var(--orange);text-shadow:var(--glow-orange);animation:pulse-orange 1.2s infinite;}
+  .ec-msg{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);text-align:center;margin-top:4px;letter-spacing:1px;}
+  .ec-bar-wrap{margin-top:8px;background:var(--bg);height:5px;border-radius:2px;overflow:hidden;}
+  .ec-bar{height:100%;background:var(--red);transition:width 1s linear;}
+  .ec-bar.safe{background:var(--orange);}
+  .force-evac-btn{display:block;width:100%;margin-top:8px;padding:7px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);font-family:'Orbitron',monospace;font-size:9px;letter-spacing:2px;cursor:pointer;transition:all .15s;text-align:center;}
+  .force-evac-btn:hover{background:#550015;}
+
+  /* MODAL */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--border2);border-top:3px solid var(--red);padding:20px;max-width:420px;width:90%;box-shadow:0 0 50px rgba(255,34,68,.35);}
+  .modal-title{font-family:'Orbitron',monospace;font-size:13px;color:var(--red);letter-spacing:3px;margin-bottom:10px;}
+  .modal-body{color:var(--text);font-size:13px;line-height:1.7;margin-bottom:14px;white-space:pre-wrap;}
+  .modal-close{padding:7px 18px;background:var(--red-dim);border:1px solid var(--red);color:var(--red);font-family:'Orbitron',monospace;font-size:10px;letter-spacing:2px;cursor:pointer;}
+  #sdi-status{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--green);}
+  ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:var(--bg);} ::-webkit-scrollbar-thumb{background:var(--border2);}
+</style>
+</head>
+<body>
+
+<div id="alarm-banner">🔥 ALARME INCENDIE — ÉVACUATION IMMÉDIATE — SSI ACTIVÉ</div>
+
+<header>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div>
+      <div class="ssi-logo">SSI</div>
+      <div class="ssi-subtitle">Système de Sécurité Incendie · Cat. A</div>
+    </div>
+  </div>
+  <div class="status-bar">
+    <div class="sys-status"><div class="led" id="sys-led"></div><span id="sys-label">VEILLE GÉNÉRALISÉE</span></div>
+    <div class="sys-status">
+      <div class="led off" id="alarm-led" style="background:#ff2244;box-shadow:none;animation:none;"></div>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim)">ALARME</span>
+    </div>
+    <div class="sys-status">
+      <div class="led off" id="evac-led" style="background:var(--yellow-dim);box-shadow:none;animation:none;"></div>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim)" id="evac-led-label">ÉVACUATION</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT -->
+  <div class="left-panel">
+    <div>
+      <div class="section-title">▶ Scénarios</div>
+      <button class="scenario-btn sf" onclick="runScenario('fire_r2')"><span>🔥</span>INCENDIE R+2 — Local Tech.</button>
+      <button class="scenario-btn ss" onclick="runScenario('smoke_rdc')"><span>💨</span>DÉTECTION FUMÉE — RDC</button>
+      <button class="scenario-btn sm" onclick="runScenario('manual_r1')"><span>🚨</span>DÉCLENCHEUR MANUEL — R+1</button>
+      <button class="scenario-btn sf" onclick="runScenario('multi_floor')"><span>⚠️</span>PROPAGATION MULTI-NIVEAUX</button>
+      <button class="scenario-btn se" onclick="runScenario('power_fail')"><span>⚡</span>DÉFAUT ALIMENTATION</button>
+      <button class="scenario-btn ss" onclick="runScenario('false_alarm')"><span>🌫️</span>FAUSSE ALARME (Cuisine)</button>
+    </div>
+    <button class="reset-btn" onclick="resetAll()">◼ REMISE EN VEILLE GÉNÉRALE</button>
+    <div>
+      <div class="section-title">▶ Légende</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;" id="legend-block"></div>
+    </div>
+    <div>
+      <div class="section-title">▶ Compteurs</div>
+      <div class="indicators">
+        <div class="indicator"><div class="indicator-val" id="cnt-alarm">0</div><div class="indicator-label">ALARMES</div></div>
+        <div class="indicator"><div class="indicator-val" id="cnt-das">0</div><div class="indicator-label">DAS ACTIFS</div></div>
+        <div class="indicator"><div class="indicator-val" id="cnt-defaut">0</div><div class="indicator-label">DÉFAUTS</div></div>
+        <div class="indicator"><div class="indicator-val" id="cnt-evac">0</div><div class="indicator-label">ÉVACUÉS</div></div>
+      </div>
+    </div>
+    <div id="scenario-info" style="display:none;">
+      <div class="section-title">▶ Scénario Actif</div>
+      <div id="scenario-detail" style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--orange);line-height:1.6;white-space:pre-wrap;"></div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="center-panel">
+
+    <!-- ALARM PANEL -->
+    <div id="alarm-panel">
+      <div class="ap-header">
+        <div class="ap-title">
+          ⚠ TABLEAU D'ALARMES
+          <span class="ap-badge" id="alarm-badge">0</span>
+          <span class="ap-sub" id="unack-label">— EN ATTENTE D'ACQUITTEMENT</span>
+        </div>
+        <div class="ap-actions">
+          <button class="mute-btn" id="mute-btn" onclick="toggleMute()">🔔 SON</button>
+          <button class="ack-all-btn" onclick="ackAll()">TOUT ACQUITTER</button>
+        </div>
+      </div>
+      <div class="alarm-list" id="alarm-list">
+        <div data-placeholder style="padding:12px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-dim);text-align:center;">— Aucune alarme en cours —</div>
+      </div>
+    </div>
+
+    <!-- EVAC COUNTDOWN -->
+    <div id="evac-countdown">
+      <div class="ec-header">
+        <div class="ec-title">⏱ TEMPORISATION ÉVACUATION</div>
+        <div class="ec-phase" id="ec-phase-top">PHASE: TEMPORISATION</div>
+      </div>
+      <div class="ec-timer" id="ec-timer">00:30</div>
+      <div class="ec-msg" id="ec-msg">Acquitter l'alarme pour suspendre la temporisation</div>
+      <div class="ec-bar-wrap"><div class="ec-bar" id="ec-bar" style="width:100%"></div></div>
+      <button class="force-evac-btn" onclick="forceEvacuation()">▶ DÉCLENCHER ÉVACUATION IMMÉDIATE</button>
+    </div>
+
+    <!-- BUILDING -->
+    <div>
+      <div class="section-title">▶ Synopsis Bâtiment — Vue Schématique</div>
+      <div class="building" id="building"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right-panel">
+    <div class="cmsi">
+      <div class="cmsi-title">CMSI · UC</div>
+      <div class="cmsi-grid">
+        <div class="cmsi-btn" id="cmsi-evac" onclick="toggleCmsi('evac')"><span class="ci">📢</span>ÉVACUATION</div>
+        <div class="cmsi-btn" id="cmsi-desenfumage" onclick="toggleCmsi('desenfumage')"><span class="ci">🪟</span>DÉSENFUMAGE</div>
+        <div class="cmsi-btn" id="cmsi-ascenseur" onclick="toggleCmsi('ascenseur')"><span class="ci">🛗</span>RAPPEL ASC.</div>
+        <div class="cmsi-btn" id="cmsi-portes" onclick="toggleCmsi('portes')"><span class="ci">🚪</span>FERMETURE PCF</div>
+        <div class="cmsi-btn" id="cmsi-clim" onclick="toggleCmsi('clim')"><span class="ci">❄️</span>ARRÊT CTA</div>
+        <div class="cmsi-btn" id="cmsi-elec" onclick="toggleCmsi('elec')"><span class="ci">💡</span>ECLAIRAGE SEC.</div>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">▶ SDI — État Détecteurs</div>
+      <div id="sdi-status">TOUS CAPTEURS OPÉRATIONNELS</div>
+    </div>
+    <div>
+      <div class="section-title">▶ Journal d'Événements</div>
+      <div class="log-list" id="log-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">ALERTE</div>
+    <div class="modal-body" id="modal-body"></div>
+    <button class="modal-close" onclick="closeModal()">ACQUITTER</button>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// AUDIO — NF S 32-001 (signal réglementaire français ERP)
+//
+//  Signal d'évacuation normalisé :
+//    554 Hz  pendant 100 ms  (ton haut)
+//    440 Hz  pendant 400 ms  (ton bas)
+//    → cycle de 500 ms répété en continu
+//
+//  Pré-alarme (avertissement opérateur) :
+//    bip unique 800 Hz / 80 ms, répété toutes les 3 s
+//
+//  Acquittement : deux tons montants 440→660 Hz
+//  Reset        : ton descendant court
+// ================================================================
+let audioCtx = null, nfsLoopNode = null, isMuted = false;
+let _nfsScheduleTimer = null;   // pour le scheduling ahead
+
+function getCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // Débloquer le contexte suspendu (politique autoplay navigateur)
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// ── Générateur de ton bas niveau ──────────────────────────────
+function tone(freq, startTime, duration, vol, type) {
+  if (isMuted) return;
+  try {
+    const c = getCtx();
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.connect(g); g.connect(c.destination);
+    o.type = type || 'sine';
+    o.frequency.value = freq;
+    // Enveloppe : attaque 5ms, maintien, déclin 20ms (évite les clics)
+    g.gain.setValueAtTime(0, startTime);
+    g.gain.linearRampToValueAtTime(vol, startTime + 0.005);
+    g.gain.setValueAtTime(vol, startTime + duration - 0.02);
+    g.gain.linearRampToValueAtTime(0, startTime + duration);
+    o.start(startTime);
+    o.stop(startTime + duration);
+  } catch(e) {}
+}
+
+// ── NF S 32-001 : cycle 554Hz/100ms + 440Hz/400ms ─────────────
+// On schedule les tons à l'avance dans le temps audio (technique
+// "lookahead scheduling" recommandée Web Audio API) pour un timing
+// précis et sans glitch.
+const NFS_HI_FREQ  = 554;   // Hz — ton haut
+const NFS_HI_DUR   = 0.10;  // s  — 100 ms
+const NFS_LO_FREQ  = 440;   // Hz — ton bas (La 440)
+const NFS_LO_DUR   = 0.40;  // s  — 400 ms
+const NFS_CYCLE    = NFS_HI_DUR + NFS_LO_DUR; // 0.50 s par cycle
+const NFS_VOL      = 0.40;
+const LOOKAHEAD    = 0.10;  // s  — avance de planification
+const SCHEDULE_INT = 80;    // ms — intervalle du scheduler
+
+let _nfsRunning = false, _nfsNextTime = 0;
+
+function _nfsSchedule() {
+  if (!_nfsRunning || isMuted) return;
+  const c = getCtx();
+  // Planifier tous les cycles dont le début tombe dans la fenêtre lookahead
+  while (_nfsNextTime < c.currentTime + LOOKAHEAD) {
+    tone(NFS_HI_FREQ, _nfsNextTime,             NFS_HI_DUR, NFS_VOL, 'square');
+    tone(NFS_LO_FREQ, _nfsNextTime + NFS_HI_DUR, NFS_LO_DUR, NFS_VOL, 'square');
+    _nfsNextTime += NFS_CYCLE;
+  }
+}
+
+function startNFS() {
+  if (_nfsRunning) return;
+  _nfsRunning = true;
+  _nfsNextTime = getCtx().currentTime + 0.05; // légère avance initiale
+  _nfsSchedule();
+  _nfsScheduleTimer = setInterval(_nfsSchedule, SCHEDULE_INT);
+}
+
+function stopNFS() {
+  _nfsRunning = false;
+  if (_nfsScheduleTimer) { clearInterval(_nfsScheduleTimer); _nfsScheduleTimer = null; }
+}
+
+// ── Pré-alarme opérateur (800 Hz, bip court répété) ──────────
+let _preAlarmTimer = null;
+function startPreAlarm() {
+  stopPreAlarm();
+  const bip = () => tone(800, getCtx().currentTime + 0.01, 0.08, 0.25, 'square');
+  bip();
+  _preAlarmTimer = setInterval(bip, 3000);
+}
+function stopPreAlarm() {
+  if (_preAlarmTimer) { clearInterval(_preAlarmTimer); _preAlarmTimer = null; }
+}
+
+// ── API publique utilisée par le reste du code ────────────────
+function startLoop(level) {
+  stopLoop();
+  if (level === 'critical') {
+    stopPreAlarm();
+    startNFS();
+  } else {
+    stopNFS();
+    startPreAlarm();
+  }
+}
+
+function stopLoop() {
+  stopNFS();
+  stopPreAlarm();
+}
+
+// ── Sons UI ───────────────────────────────────────────────────
+function beepAck() {
+  if (isMuted) return;
+  const c = getCtx(), t = c.currentTime;
+  tone(440, t + 0.01, 0.07, 0.18, 'sine');
+  tone(660, t + 0.09, 0.10, 0.18, 'sine');
+}
+
+function beepEvac() {
+  // Reprise du signal NF S 32-001 (déjà lancé via startNFS en général)
+  // Son d'alerte supplémentaire : 3 cycles rapides haute intensité
+  if (isMuted) return;
+  const c = getCtx(), t = c.currentTime;
+  [0, 0.18, 0.36].forEach(d => {
+    tone(NFS_HI_FREQ, t + d,             0.08, 0.5, 'square');
+    tone(NFS_LO_FREQ, t + d + 0.08, 0.10, 0.5, 'square');
+  });
+}
+
+function beepReset() {
+  if (isMuted) return;
+  const c = getCtx(), t = c.currentTime;
+  tone(660, t + 0.01, 0.06, 0.15, 'sine');
+  tone(440, t + 0.08, 0.08, 0.15, 'sine');
+  tone(330, t + 0.17, 0.10, 0.12, 'sine');
+}
+
+function toggleMute() {
+  isMuted = !isMuted;
+  const b = document.getElementById('mute-btn');
+  if (isMuted) {
+    stopLoop();
+    b.textContent = '🔕 MUET'; b.classList.add('muted');
+  } else {
+    b.textContent = '🔔 SON'; b.classList.remove('muted');
+    if (state.unackCount > 0) startLoop(state.alarmActive ? 'critical' : 'warning');
+  }
+}
+
+// ================================================================
+// DATA MODEL
+// ================================================================
+const FLOORS = [
+  {id:'r3', name:'R+3', label:'Combles / Technique'},
+  {id:'r2', name:'R+2', label:'Bureaux + Local Tech.'},
+  {id:'r1', name:'R+1', label:'Bureaux Ouverts'},
+  {id:'rdc',name:'RDC', label:'Accueil / Couloir / Cuis.'},
+  {id:'ss1',name:'SS-1',label:'Parking / Local Chauff.'},
+];
+const DEVS = {
+  r3: ['det1','det2','trappe1','pcf1','diff1'],
+  r2: ['det1','det2','det3','dcm1','trappe1','trappe2','pcf1','pcf2','diff1','diff2','eclairage1'],
+  r1: ['det1','det2','det3','dcm1','dcm2','trappe1','pcf1','pcf2','pcf3','diff1','diff2','eclairage1'],
+  rdc:['det1','det2','det3','dcm1','trappe1','trappe2','pcf1','pcf2','ascenseur1','diff1','diff2'],
+  ss1:['det1','det2','trappe1','trappe2','pcf1','pcf2','diff1'],
+};
+// ── Symboles SVG normalisés NF S 61-931 / ISO 7010 ─────────────
+// Pictogrammes utilisés sur les synoptiques SSI professionnels
+const SVG = {
+  // Détecteur automatique d'incendie — cercle + croix centrale + fumée
+  det: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="16" cy="18" r="11" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="16" cy="18" r="5" stroke="currentColor" stroke-width="1.4"/>
+    <line x1="16" y1="7" x2="16" y2="11" stroke="currentColor" stroke-width="1.6"/>
+    <line x1="16" y1="25" x2="16" y2="29" stroke="currentColor" stroke-width="1.6"/>
+    <line x1="5" y1="18" x2="9" y2="18" stroke="currentColor" stroke-width="1.6"/>
+    <line x1="23" y1="18" x2="27" y2="18" stroke="currentColor" stroke-width="1.6"/>
+    <path d="M13 5 Q14 2 16 3 Q17 1 19 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+  </svg>`,
+
+  // Déclencheur Manuel (DM) — rectangle rouge brisé / bris de glace
+  dcm: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="4" width="26" height="24" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <rect x="7" y="8" width="18" height="16" rx="1" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.5"/>
+    <line x1="16" y1="11" x2="16" y2="21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <line x1="11" y1="16" x2="21" y2="16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="16" y="30" font-size="5" text-anchor="middle" fill="currentColor" font-family="monospace">DM</text>
+  </svg>`,
+
+  // Trappe de désenfumage — carré avec flèches d'ouverture
+  trappe: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="8" width="26" height="16" rx="1.5" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="16" y1="8" x2="16" y2="24" stroke="currentColor" stroke-width="1.2"/>
+    <polyline points="9,12 6,16 9,20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <polyline points="23,12 26,16 23,20" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M4 4 Q7 2 10 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+    <path d="M22 4 Q25 2 28 4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+    <text x="16" y="31" font-size="4.5" text-anchor="middle" fill="currentColor" font-family="monospace">TDF</text>
+  </svg>`,
+
+  // Porte Coupe-Feu (PCF) — symbole porte + barrière feu
+  pcf: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="2" y="6" width="28" height="20" rx="1.5" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="16" y1="6" x2="16" y2="26" stroke="currentColor" stroke-width="2.5"/>
+    <path d="M16 14 Q20 12 22 16 Q20 20 16 18" stroke="currentColor" stroke-width="1.3" fill="none"/>
+    <circle cx="13.5" cy="16" r="1.2" fill="currentColor"/>
+    <line x1="2" y1="26" x2="30" y2="26" stroke="currentColor" stroke-width="1.5"/>
+    <text x="16" y="33" font-size="4" text-anchor="middle" fill="currentColor" font-family="monospace">PCF</text>
+  </svg>`,
+
+  // Diffuseur Sonore — haut-parleur / pavillon acoustique
+  diffuseur: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="12" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.6"/>
+    <polygon points="10,12 20,6 20,26 10,20" stroke="currentColor" stroke-width="1.6" fill="none"/>
+    <path d="M22 11 Q26 16 22 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    <path d="M24 8 Q30 16 24 24" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+    <text x="10" y="33" font-size="4.5" text-anchor="middle" fill="currentColor" font-family="monospace">DS</text>
+  </svg>`,
+
+  // BAES — Bloc Autonome Éclairage de Sécurité
+  eclairage: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="10" width="24" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <circle cx="16" cy="17" r="4" stroke="currentColor" stroke-width="1.4"/>
+    <line x1="16" y1="13" x2="16" y2="10" stroke="currentColor" stroke-width="1.3"/>
+    <line x1="16" y1="21" x2="16" y2="24" stroke="currentColor" stroke-width="1.3"/>
+    <line x1="12" y1="17" x2="4" y2="17" stroke="currentColor" stroke-width="1.3"/>
+    <line x1="20" y1="17" x2="28" y2="17" stroke="currentColor" stroke-width="1.3"/>
+    <line x1="14" y1="4" x2="14" y2="8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="18" y1="4" x2="18" y2="8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <text x="16" y="33" font-size="4" text-anchor="middle" fill="currentColor" font-family="monospace">BAES</text>
+  </svg>`,
+
+  // Ascenseur — cabine + flèches rappel
+  ascenseur: `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="6" y="4" width="20" height="24" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="16" y1="4" x2="16" y2="28" stroke="currentColor" stroke-width="1.2"/>
+    <polyline points="10,14 13,10 16,14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <polyline points="16,18 19,22 22,18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <text x="16" y="33" font-size="4" text-anchor="middle" fill="currentColor" font-family="monospace">ASC</text>
+  </svg>`,
+};
+
+const DDEF = {
+  det1:{t:'smoke-det',i:SVG.det, l:'DI-01',d:'Détecteur ionique zone A'},
+  det2:{t:'smoke-det',i:SVG.det, l:'DI-02',d:'Détecteur optique zone B'},
+  det3:{t:'smoke-det',i:SVG.det, l:'DI-03',d:'Détecteur therm. diff.'},
+  dcm1:{t:'dcm',      i:SVG.dcm, l:'DCM-01',d:'Déclencheur manuel cage esc.'},
+  dcm2:{t:'dcm',      i:SVG.dcm, l:'DCM-02',d:'Déclencheur manuel couloir'},
+  trappe1:{t:'trappe',i:SVG.trappe,l:'TDF-01',d:'Trappe désenfumage cage esc.'},
+  trappe2:{t:'trappe',i:SVG.trappe,l:'TDF-02',d:'Trappe désenfumage hall'},
+  pcf1:{t:'pcf',      i:SVG.pcf, l:'PCF-01',d:'PCF CF90 — palier'},
+  pcf2:{t:'pcf',      i:SVG.pcf, l:'PCF-02',d:'PCF CF60 — bureau'},
+  pcf3:{t:'pcf',      i:SVG.pcf, l:'PCF-03',d:'PCF CF30 — couloir'},
+  diff1:{t:'diffuseur',i:SVG.diffuseur,l:'DS-01',d:'Diffuseur sonore alarme'},
+  diff2:{t:'diffuseur',i:SVG.diffuseur,l:'DS-02',d:'Diffuseur sonore évacuation'},
+  eclairage1:{t:'eclairage',i:SVG.eclairage,l:'BAES-01',d:'Bloc autonome éclairage sécu.'},
+  ascenseur1:{t:'ascenseur',i:SVG.ascenseur,l:'ASC-01',d:'Rappel niveau de sortie'},
+};
+
+let state = {
+  alarmActive:false, evacuationTriggered:false,
+  floorStates:{r3:'normal',r2:'normal',r1:'normal',rdc:'normal',ss1:'normal'},
+  defautCount:0, alarmCount:0, dasCount:0, evacCount:0, unackCount:0,
+  scenarioTimers:[], alarmRows:[], alarmIdSeq:0,
+  evacSec:0, evacMaxSec:0,
+};
+let evacInterval = null, evacPaused = false;
+
+// ================================================================
+// BUILD UI
+// ================================================================
+function buildBuilding() {
+  const c = document.getElementById('building'); c.innerHTML='';
+  FLOORS.forEach(f => {
+    const el = document.createElement('div');
+    el.className='floor'; el.id='floor-'+f.id;
+    const dh = (DEVS[f.id]||[]).map(did=>{
+      const def=DDEF[did]; if(!def)return'';
+      return `<div class="device ${def.t} active" id="dev-${f.id}-${did}" onclick="devClick('${f.id}','${did}')">
+        <div class="device-icon">${def.i}</div>
+        <div class="device-label">${def.l}</div>
+        <div class="device-led"></div>
+        <div class="tooltip">${def.d}</div></div>`;
+    }).join('');
+    el.innerHTML=`<div class="floor-header">
+      <div><span class="floor-name">${f.name}</span>
+      <span style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-dim);margin-left:8px">${f.label}</span></div>
+      <div class="floor-status" id="status-${f.id}">NOMINAL</div></div>
+      <div class="devices">${dh}</div>`;
+    c.appendChild(el);
+  });
+}
+
+// ================================================================
+// LOGGING
+// ================================================================
+function log(msg, level='info') {
+  const t = new Date().toTimeString().slice(0,8);
+  const list = document.getElementById('log-list');
+  const el = document.createElement('div');
+  el.className=`log-entry ${level}`;
+  el.innerHTML=`<span class="log-time">${t}</span><span>${msg}</span>`;
+  list.insertBefore(el,list.firstChild);
+  while(list.children.length>50) list.removeChild(list.lastChild);
+}
+
+// ================================================================
+// ALARM PANEL
+// ================================================================
+function addAlarm(zone, type, msg, level) {
+  const t = new Date().toTimeString().slice(0,8);
+  const id = ++state.alarmIdSeq;
+  state.alarmRows.unshift({id,t,zone,type,msg,level,acked:false});
+  state.unackCount++;
+
+  const list = document.getElementById('alarm-list');
+  const ph = list.querySelector('[data-placeholder]');
+  if(ph) ph.remove();
+
+  const lc = level==='critical'?'lc':level==='warning'?'lw':'li';
+  const el = document.createElement('div');
+  el.className=`alarm-row unack ${lc}`; el.id=`ar-${id}`;
+  el.innerHTML=`<div class="adot"></div>
+    <div class="atime">${t}</div>
+    <div class="azone">${zone}</div>
+    <div class="atype">${type}</div>
+    <div class="amsg">${msg}</div>
+    <button class="ack-btn ${lc==='lw'?'lw':''}" id="ab-${id}" onclick="ackAlarm(${id})">ACQUITTER</button>`;
+  list.insertBefore(el,list.firstChild);
+
+  updateBadge();
+  startLoop(level);
+  if (!state.evacuationTriggered) {
+    if (!evacPaused) startEvacCountdown(level);
+    else resumeEvac();
+  }
+}
+
+function ackAlarm(id) {
+  const row = state.alarmRows.find(r=>r.id===id);
+  if(!row||row.acked) return;
+  row.acked=true; state.unackCount=Math.max(0,state.unackCount-1);
+  const el=document.getElementById(`ar-${id}`); if(el){el.classList.remove('unack');el.classList.add('acked');}
+  const btn=document.getElementById(`ab-${id}`); if(btn){btn.textContent='ACQUITTÉ';btn.classList.add('done');}
+  beepAck();
+  log(`Alarme #${id} [${row.zone}] acquittée`,'ok');
+  updateBadge();
+  if(state.unackCount===0) { stopLoop(); pauseEvac(); }
+}
+
+function ackAll() {
+  state.alarmRows.filter(r=>!r.acked).forEach(r=>ackAlarm(r.id));
+}
+
+function updateBadge() {
+  const b=document.getElementById('alarm-badge');
+  const l=document.getElementById('unack-label');
+  b.textContent=state.unackCount;
+  b.style.background=state.unackCount>0?'var(--red)':'#223';
+  l.textContent=state.unackCount>0?`— ${state.unackCount} EN ATTENTE D'ACQUITTEMENT`:'— TOUTES ACQUITTÉES';
+}
+
+// ================================================================
+// EVACUATION COUNTDOWN
+// ================================================================
+function startEvacCountdown(level) {
+  if(state.evacuationTriggered) return;
+  const secs = level==='critical'?15:30;
+  state.evacSec=secs; state.evacMaxSec=secs;
+  evacPaused=false;
+  document.getElementById('evac-countdown').style.display='block';
+  document.getElementById('evac-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--yellow);box-shadow:var(--glow-yellow);animation:pulse-orange .8s infinite;';
+  document.getElementById('ec-phase-top').textContent='PHASE: TEMPORISATION';
+  document.getElementById('ec-msg').textContent="Acquitter l'alarme pour suspendre la temporisation";
+  document.getElementById('ec-timer').classList.remove('safe');
+  document.getElementById('ec-bar').classList.remove('safe');
+  updateEvacDisplay();
+  if(evacInterval) clearInterval(evacInterval);
+  evacInterval=setInterval(()=>{
+    if(evacPaused) return;
+    state.evacSec--;
+    updateEvacDisplay();
+    if(state.evacSec<=5 && state.evacSec>0) { tone(NFS_HI_FREQ, getCtx().currentTime+0.01, 0.08, 0.35, 'square'); }
+    if(state.evacSec<=0) { clearInterval(evacInterval); triggerGeneralEvac(); }
+  },1000);
+  log(`⏱ Temporisation démarrée — ${secs}s avant évacuation générale`,'warning');
+}
+
+function pauseEvac() {
+  if(state.evacuationTriggered) return;
+  evacPaused=true;
+  document.getElementById('ec-phase-top').textContent='PHASE: LEVÉE DE DOUTE';
+  document.getElementById('ec-msg').textContent='⏸ Suspendue — En attente de confirmation terrain';
+  document.getElementById('ec-timer').classList.add('safe');
+  document.getElementById('ec-bar').classList.add('safe');
+  log('⏸ Temporisation suspendue — Alarmes toutes acquittées','info');
+}
+
+function resumeEvac() {
+  if(state.evacuationTriggered) return;
+  evacPaused=false;
+  document.getElementById('ec-phase-top').textContent='PHASE: TEMPORISATION';
+  document.getElementById('ec-msg').textContent="Acquitter l'alarme pour suspendre la temporisation";
+  document.getElementById('ec-timer').classList.remove('safe');
+  document.getElementById('ec-bar').classList.remove('safe');
+  log('▶ Temporisation reprise — Nouvelle alarme non acquittée','warning');
+}
+
+function updateEvacDisplay() {
+  const s=state.evacSec, m=Math.floor(s/60), ss=s%60;
+  document.getElementById('ec-timer').textContent=`${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  document.getElementById('ec-bar').style.width=(s/state.evacMaxSec*100)+'%';
+}
+
+function forceEvacuation() {
+  if(evacInterval) clearInterval(evacInterval);
+  state.evacSec=0; updateEvacDisplay();
+  triggerGeneralEvac();
+}
+
+function triggerGeneralEvac() {
+  if(state.evacuationTriggered) return;
+  state.evacuationTriggered=true;
+  if(evacInterval) clearInterval(evacInterval);
+
+  beepEvac(); setTimeout(beepEvac,700); setTimeout(beepEvac,1400);
+  document.getElementById('evac-countdown').style.display='none';
+  document.getElementById('alarm-banner').style.display='block';
+  document.getElementById('evac-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .3s infinite;';
+  document.getElementById('evac-led-label').textContent='⚠ ÉVACUATION';
+  document.getElementById('sys-led').className='led red';
+  document.getElementById('sys-label').textContent='ÉVACUATION GÉNÉRALE';
+  document.getElementById('alarm-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .4s infinite;';
+
+  log('🚨 ÉVACUATION GÉNÉRALE DÉCLENCHÉE — Tous DAS activés','critical');
+  log('▶ Diffuseurs sonores — Signal évacuation général','critical');
+  FLOORS.forEach(f=>activateDas(f.id));
+  FLOORS.forEach(f=>{ if(state.floorStates[f.id]!=='alarm') evacuateFloor(f.id); });
+  state.evacCount=92; state.alarmActive=true;
+  updateCounters();
+  startLoop('critical');
+}
+
+// ================================================================
+// DEVICE INTERACTION
+// ================================================================
+function devClick(fid, did) {
+  const def=DDEF[did]; if(!def) return;
+  const el=document.getElementById(`dev-${fid}-${did}`); if(!el) return;
+  const fn=FLOORS.find(f=>f.id===fid); const fname=fn?fn.name:fid.toUpperCase();
+
+  if(def.t==='dcm') {
+    el.classList.add('triggered');
+    log(`DCM ${def.l} — ACTIVATION MANUELLE — ${fname}`,'critical');
+    addAlarm(fname,'DCM-MANUEL',`${def.l} actionné manuellement`,'critical');
+    triggerFloorAlarm(fid,`DCM ${def.l} déclenché`,'manual');
+  } else if(def.t==='smoke-det') {
+    if(!el.classList.contains('detecting')) {
+      el.classList.add('detecting');
+      log(`Détection: ${def.l} — ${fname} — Fumée détectée`,'warning');
+      addAlarm(fname,'PRÉ-ALARME',`${def.l} — seuil fumée déclenché`,'warning');
+      setTimeout(()=>triggerFloorAlarm(fid,`Confirmation ${def.l}`,'detection'),1500);
+    }
+  } else if(def.t==='trappe') {
+    const open=el.classList.contains('open');
+    el.classList.toggle('open',!open); el.classList.toggle('active',open);
+    log(`${def.l} ${!open?'OUVERTURE':'FERMETURE'} — ${fname}`,!open?'warning':'ok');
+  } else if(def.t==='pcf') {
+    const closed=el.classList.contains('closed');
+    el.classList.toggle('closed',!closed); el.classList.toggle('active',closed);
+    log(`${def.l} ${!closed?'FERMÉE':'OUVERTE'} — ${fname}`,!closed?'ok':'info');
+  }
+}
+
+// ================================================================
+// FLOOR ALARM
+// ================================================================
+function triggerFloorAlarm(fid, reason, src) {
+  const el=document.getElementById('floor-'+fid); if(!el) return;
+  const fn=FLOORS.find(f=>f.id===fid); const fname=fn?fn.name:fid;
+  const st=document.getElementById('status-'+fid);
+  state.floorStates[fid]='alarm';
+  el.classList.remove('smoke','evacuating'); el.classList.add('alarm');
+  if(st) st.textContent='🔥 ALARME';
+  const lc=src==='manual'?'DCM-MANUEL':src==='detection'?'DET-CONFIRM':'ALARME';
+  addAlarm(fname,lc,reason,'critical');
+  if(!state.alarmActive){
+    state.alarmActive=true; state.alarmCount++;
+    document.getElementById('sys-led').className='led red';
+    document.getElementById('sys-label').textContent='ALARME GÉNÉRALE';
+    document.getElementById('alarm-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:var(--glow-red);animation:pulse-red .4s infinite;';
+  }
+  log(`🔥 ALARME — ${fid.toUpperCase()} — ${reason}`,'critical');
+  log(`▶ DAS déclenché automatiquement — ${fid.toUpperCase()}`,'warning');
+  activateDas(fid); updateCounters();
+}
+
+function triggerFloorSmoke(fid, reason) {
+  const el=document.getElementById('floor-'+fid); if(!el||state.floorStates[fid]==='alarm') return;
+  const fn=FLOORS.find(f=>f.id===fid); const fname=fn?fn.name:fid;
+  state.floorStates[fid]='smoke'; el.classList.add('smoke');
+  const st=document.getElementById('status-'+fid); if(st) st.textContent='💨 FUMÉE';
+  addAlarm(fname,'PRÉ-ALARME',reason||'Présence fumée confirmée','warning');
+  log(`💨 DÉTECTION — ${fid.toUpperCase()} — ${reason||'Fumée détectée'}`,'warning');
+}
+
+function evacuateFloor(fid) {
+  const el=document.getElementById('floor-'+fid); if(!el||state.floorStates[fid]==='alarm') return;
+  state.floorStates[fid]='evacuating'; el.classList.add('evacuating');
+  const st=document.getElementById('status-'+fid); if(st) st.textContent='⚠️ ÉVACUATION';
+}
+
+// ================================================================
+// DAS
+// ================================================================
+function activateDas(fid) {
+  (DEVS[fid]||[]).forEach(did=>{
+    const def=DDEF[did]; if(!def) return;
+    const el=document.getElementById(`dev-${fid}-${did}`); if(!el) return;
+    if(def.t==='trappe'&&!el.classList.contains('open')){el.classList.remove('active');el.classList.add('open');state.dasCount++;log(`▶ DAS: ${def.l} OUVERTURE — Désenfumage`,'info');}
+    else if(def.t==='pcf'&&!el.classList.contains('closed')){el.classList.remove('active');el.classList.add('closed');state.dasCount++;log(`▶ DAS: ${def.l} FERMETURE — Compartimentage`,'info');}
+    else if(def.t==='diffuseur'&&!el.classList.contains('triggered')){el.classList.add('triggered');log(`▶ DAS: ${def.l} ALARME SONORE`,'info');}
+    else if(def.t==='eclairage'&&!el.classList.contains('triggered')){el.classList.add('triggered');log(`▶ BAES: ${def.l} activé`,'info');}
+    else if(def.t==='ascenseur'&&!el.classList.contains('triggered')){el.classList.add('triggered');log(`▶ DAS: ASC-01 Rappel sortie`,'warning');}
+  });
+  updateCounters();
+}
+
+function activateDet(fid, did) { const el=document.getElementById(`dev-${fid}-${did}`); if(el) el.classList.add('detecting'); }
+function triggerDcm(fid, did)  { const el=document.getElementById(`dev-${fid}-${did}`); if(el) el.classList.add('triggered'); }
+
+// ================================================================
+// CMSI
+// ================================================================
+function toggleCmsi(id) {
+  const el=document.getElementById('cmsi-'+id);
+  const on=el.classList.toggle('active-cmd');
+  const L={evac:'Évacuation générale',desenfumage:'Désenfumage général',ascenseur:'Rappel ascenseur',portes:'Fermeture portes CF',clim:'Arrêt CTA/ventilation',elec:'Éclairage de sécurité'};
+  log(`CMSI: ${L[id]} — ${on?'ACTIVÉ':'DÉSACTIVÉ'}`,on?'warning':'ok');
+  if(on){state.dasCount++;beepWarning();}else if(state.dasCount>0)state.dasCount--;
+  updateCounters();
+}
+
+// ================================================================
+// COUNTERS
+// ================================================================
+function updateCounters() {
+  const set=(id,v,cls)=>{const e=document.getElementById(id);e.textContent=v;e.className='indicator-val'+(cls?' '+cls:'');};
+  set('cnt-alarm',state.alarmCount,state.alarmCount>0?'red':'');
+  set('cnt-das',state.dasCount,state.dasCount>0?'orange':'');
+  set('cnt-defaut',state.defautCount,state.defautCount>0?'red':'');
+  set('cnt-evac',state.evacCount,state.evacCount>0?'yellow':'');
+}
+
+// ================================================================
+// SCENARIOS
+// ================================================================
+const SCENARIOS = {
+  fire_r2:{
+    title:'Incendie déclaré — R+2 Local Technique',
+    desc:'Feu local technique électrique R+2.\nDétecteurs thermiques → Double confirmation\n→ Alarme zone → Tempo 15s → DAS + Évac.',
+    steps:[
+      {d:0,    f:()=>log('Scénario: Démarrage — Local technique R+2','info')},
+      {d:500,  f:()=>{ activateDet('r2','det3'); log('DI-03 R+2 — Chaleur anormale (58°C)','warning'); }},
+      {d:1500, f:()=>{ activateDet('r2','det2'); log('DI-02 R+2 — Confirmation fumée opaque','warning'); }},
+      {d:2500, f:()=>triggerFloorAlarm('r2','Double détection confirmée — Incendie déclaré','detection')},
+      {d:3200, f:()=>evacuateFloor('r1')},
+      {d:3400, f:()=>evacuateFloor('r3')},
+      {d:4000, f:()=>{ state.evacCount=47; updateCounters(); log('Évacuation partielle — 47 personnes','warning'); }},
+      {d:4500, f:()=>{ activateDas('r1'); activateDas('r3'); }},
+    ]
+  },
+  smoke_rdc:{
+    title:'Détection fumée — RDC Couloir',
+    desc:'Détecteur optique couloir RDC.\nFumée légère → Pré-alarme (tempo 30s)\n→ Acquitter pour levée de doute.',
+    steps:[
+      {d:0,    f:()=>log('Scénario: Pré-alarme — RDC couloir','info')},
+      {d:400,  f:()=>{ activateDet('rdc','det1'); log('DI-01 RDC — Pré-alarme: fumée 12%/m','warning'); }},
+      {d:900,  f:()=>log('SDI — Temporisation 30s avant confirmation...','info')},
+      {d:1800, f:()=>{ activateDet('rdc','det2'); log('DI-02 RDC — Confirmation: 28%/m — SEUIL DÉPASSÉ','critical'); }},
+      {d:2400, f:()=>triggerFloorSmoke('rdc','Double détection — Fumée opaque couloir')},
+      {d:2900, f:()=>triggerFloorAlarm('rdc','Détection fumée confirmée — Zone 01','detection')},
+      {d:3500, f:()=>{ const s=document.getElementById('sdi-status'); s.style.color='var(--orange)'; s.textContent='⚠ DÉFAUT: Zone RDC — 2 capteurs alarme'; }},
+    ]
+  },
+  manual_r1:{
+    title:'Déclenchement manuel — R+1',
+    desc:'Appui DCM cage escalier R+1.\nAlarme immédiate — Tempo 15s\n→ Évacuation tous niveaux si non acquitté.',
+    steps:[
+      {d:0,    f:()=>log('Scénario: DCM activé — R+1 cage escalier','info')},
+      {d:300,  f:()=>{ triggerDcm('r1','dcm1'); log('DCM-01 R+1 — ACTIVATION MANUELLE','critical'); }},
+      {d:600,  f:()=>triggerFloorAlarm('r1','Déclencheur manuel DCM-01 — Alarme immédiate','manual')},
+      {d:1200, f:()=>['rdc','r2','r3','ss1'].forEach(f=>evacuateFloor(f))},
+      {d:1500, f:()=>{ state.evacCount=92; updateCounters(); log('Évacuation totale — 92 personnes','critical'); }},
+      {d:2000, f:()=>FLOORS.forEach(f=>{ if(f.id!=='r1') activateDas(f.id); })},
+    ]
+  },
+  multi_floor:{
+    title:'Propagation multi-niveaux',
+    desc:'Incendie SS-1 → RDC → R+1.\nPropagation par cage technique.\nCompartimentage progressif.',
+    steps:[
+      {d:0,    f:()=>log('Scénario: Foyer initial — SS-1 chaufferie','info')},
+      {d:400,  f:()=>{ activateDet('ss1','det1'); activateDet('ss1','det2'); }},
+      {d:900,  f:()=>triggerFloorAlarm('ss1','Incendie chaufferie — Double détection','detection')},
+      {d:1700, f:()=>log('⚠️ Propagation — Montée par cage technique','critical')},
+      {d:2300, f:()=>{ activateDet('rdc','det2'); log('DI-02 RDC — Propagation confirmée','critical'); }},
+      {d:3100, f:()=>triggerFloorAlarm('rdc','Propagation depuis SS-1 — Cage technique','detection')},
+      {d:3900, f:()=>{ activateDet('r1','det1'); log('DI-01 R+1 — Fumée — Propagation R+1','critical'); }},
+      {d:4800, f:()=>triggerFloorAlarm('r1','Propagation multi-niveaux','detection')},
+      {d:5400, f:()=>{ state.defautCount=2; updateCounters(); log('🚨 PROPAGATION ACTIVE — 3 niveaux en alarme','critical'); }},
+    ]
+  },
+  power_fail:{
+    title:'Défaut alimentation secteur',
+    desc:'Coupure EDF → Batterie de secours.\nTest BAES automatique.\nDéfaut reporté CMSI.',
+    steps:[
+      {d:0,    f:()=>log('Scénario: Coupure alimentation 230V','info')},
+      {d:300,  f:()=>{ state.defautCount++; updateCounters(); log('⚡ DÉFAUT ALIMENTATION — 230V coupé','critical'); }},
+      {d:500,  f:()=>addAlarm('ALIM-230V','DÉFAUT','Coupure secteur — Batterie active','warning')},
+      {d:900,  f:()=>log('▶ Basculement batterie de secours','warning')},
+      {d:1200, f:()=>log('▶ BAES — Test automatique en cours...','info')},
+      {d:1600, f:()=>{ FLOORS.forEach(f=>(DEVS[f.id]||[]).forEach(d=>{ if(d.startsWith('eclairage')){const el=document.getElementById(`dev-${f.id}-${d}`);if(el)el.classList.add('triggered');}})); log('▶ BAES allumés tous niveaux — OK','ok'); }},
+      {d:2200, f:()=>{ const s=document.getElementById('sdi-status'); s.style.color='var(--orange)'; s.textContent='⚠ DÉFAUT: Alimentation secteur — Batterie active'; }},
+      {d:2700, f:()=>log('▶ Autonomie batterie SSI: 12h estimées','info')},
+      {d:3200, f:()=>{ document.getElementById('sys-led').className='led orange'; document.getElementById('sys-label').textContent='DÉFAUT ALIMENTATION'; }},
+    ]
+  },
+  false_alarm:{
+    title:'Fausse alarme — Cuisine RDC',
+    desc:'Vapeurs cuisson → Détecteur activé.\nTempo 30s → Levée de doute.\nAcquitter pour annuler évacuation.',
+    steps:[
+      {d:0,    f:()=>log('Scénario: Vapeurs cuisson — Cuisine RDC','info')},
+      {d:400,  f:()=>{ activateDet('rdc','det3'); log('DI-03 RDC/Cuisine — Vapeur cuisson détectée','warning'); }},
+      {d:700,  f:()=>addAlarm('RDC/CUIS','PRÉ-ALARME','DI-03 — seuil vapeur déclenché','warning')},
+      {d:1100, f:()=>log('SDI — Temporisation 30s levée de doute...','info')},
+      {d:2600, f:()=>log('▶ Levée de doute terrain — Cuisson normale','ok')},
+      {d:3000, f:()=>{ state.defautCount++; updateCounters(); log('⚠ INHIBITION: DI-03 inhibé — 2h','warning'); }},
+      {d:3500, f:()=>log('▶ Fausse alarme confirmée — Aucun DAS','ok')},
+      {d:4000, f:()=>{ const s=document.getElementById('sdi-status'); s.style.color='var(--yellow)'; s.textContent='⚠ INHIBITION: DI-03 RDC/Cuisine'; }},
+    ]
+  },
+};
+
+function runScenario(id) {
+  state.scenarioTimers.forEach(t=>clearTimeout(t)); state.scenarioTimers=[];
+  const sc=SCENARIOS[id]; if(!sc) return;
+  document.getElementById('scenario-info').style.display='block';
+  document.getElementById('scenario-detail').textContent=sc.desc;
+  log(`━━ SCÉNARIO: ${sc.title} ━━`,'info');
+  sc.steps.forEach(s=>{ const t=setTimeout(s.f,s.d); state.scenarioTimers.push(t); });
+}
+
+// ================================================================
+// RESET
+// ================================================================
+function resetAll() {
+  state.scenarioTimers.forEach(t=>clearTimeout(t));
+  if(evacInterval) clearInterval(evacInterval);
+  stopLoop(); evacInterval=null; evacPaused=false;
+
+  state={alarmActive:false,evacuationTriggered:false,
+    floorStates:{r3:'normal',r2:'normal',r1:'normal',rdc:'normal',ss1:'normal'},
+    defautCount:0,alarmCount:0,dasCount:0,evacCount:0,unackCount:0,
+    scenarioTimers:[],alarmRows:[],alarmIdSeq:0,evacSec:0,evacMaxSec:0};
+
+  document.getElementById('alarm-banner').style.display='none';
+  document.getElementById('sys-led').className='led';
+  document.getElementById('sys-label').textContent='VEILLE GÉNÉRALISÉE';
+  document.getElementById('alarm-led').style.cssText='width:10px;height:10px;border-radius:50%;background:#ff2244;box-shadow:none;animation:none;';
+  document.getElementById('evac-led').style.cssText='width:10px;height:10px;border-radius:50%;background:var(--yellow-dim);box-shadow:none;animation:none;';
+  document.getElementById('evac-led-label').textContent='ÉVACUATION';
+  document.getElementById('sdi-status').style.color='var(--green)';
+  document.getElementById('sdi-status').textContent='TOUS CAPTEURS OPÉRATIONNELS';
+  document.getElementById('scenario-info').style.display='none';
+  document.getElementById('evac-countdown').style.display='none';
+  document.querySelectorAll('.cmsi-btn').forEach(b=>b.classList.remove('active-cmd'));
+  document.getElementById('alarm-list').innerHTML='<div data-placeholder style="padding:12px;font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--text-dim);text-align:center;">— Aucune alarme en cours —</div>';
+  updateBadge(); updateCounters(); buildBuilding();
+  beepReset();
+  log('━━ REMISE EN VEILLE GÉNÉRALE — Réinitialisation complète ━━','ok');
+}
+
+// ================================================================
+// MODAL
+// ================================================================
+function showModal(t,b){document.getElementById('modal-title').textContent=t;document.getElementById('modal-body').textContent=b;document.getElementById('modal').classList.add('show');}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+
+// ================================================================
+// LEGEND
+// ================================================================
+function buildLegend() {
+  const items = [
+    {svg: SVG.dcm,        label:'DCM / DM'},
+    {svg: SVG.det,        label:'Détecteur'},
+    {svg: SVG.pcf,        label:'PCF'},
+    {svg: SVG.trappe,     label:'Trappe TDF'},
+    {svg: SVG.eclairage,  label:'BAES'},
+    {svg: SVG.diffuseur,  label:'Diffuseur'},
+    {svg: SVG.ascenseur,  label:'Ascenseur'},
+    {dot: true,           label:'DAS'},
+  ];
+  const st = 'display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-dim);font-family:\'Share Tech Mono\',monospace;';
+  const el = document.getElementById('legend-block');
+  if(!el) return;
+  el.innerHTML = items.map(it => {
+    const icon = it.dot
+      ? `<div style="width:10px;height:10px;border-radius:50%;background:var(--blue);flex-shrink:0;"></div>`
+      : it.svg.replace('width="28" height="28"','width="16" height="16"').replace('style="color:var(--text-dim)"','').replace('<svg ','<svg style="color:var(--text-dim)" ');
+    return `<div style="${st}">${icon}${it.label}</div>`;
+  }).join('');
+}
+
+// ================================================================
+// CLOCK & INIT
+// ================================================================
+setInterval(()=>document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8),1000);
+document.getElementById('clock').textContent=new Date().toTimeString().slice(0,8);
+buildBuilding();
+buildLegend();
+log('SSI initialisé — Catégorie A — Veille généralisée','ok');
+log('SDI: 18 détecteurs en ligne — 5 DCM opérationnels','info');
+log('DAS: 10 trappes + 14 PCF + 4 ascenseurs en veille','info');
+log('Alimentation: Secteur 230V OK — Batterie 100%','ok');
+updateCounters();
+</script>
+</body>
+</html>
